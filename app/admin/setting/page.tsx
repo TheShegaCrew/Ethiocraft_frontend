@@ -153,6 +153,15 @@ const initialSettings: SettingsState = {
     },
 };
 
+const API_BASE = (process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:4000/api/v1").replace(/\/$/, "");
+
+function getAuthHeaders() {
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") || localStorage.getItem("authToken") : "";
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    return headers;
+}
+
 const navGroups: { label: string; items: { key: SectionKey; label: string }[] }[] = [
     { label: "GENERAL", items: [{ key: "general", label: "General" }] },
     {
@@ -230,6 +239,9 @@ export default function App() {
     const [settings, setSettings] = useState<SettingsState>(initialSettings);
     const [savedSettings, setSavedSettings] = useState<SettingsState>(initialSettings);
     const [toast, setToast] = useState("");
+    const [errorText, setErrorText] = useState("");
+    const [saving, setSaving] = useState(false);
+    const [hydrating, setHydrating] = useState(true);
     const [loadingSection, setLoadingSection] = useState(false);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [pendingPermissionChange, setPendingPermissionChange] = useState<null | { role: RoleName; action: PermissionAction; value: boolean }>(null);
@@ -253,6 +265,29 @@ export default function App() {
     );
 
     useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            try {
+                const res = await fetch(`${API_BASE}/admin/settings`, { headers: getAuthHeaders(), cache: "no-store" });
+                if (!res.ok) throw new Error(`Failed to fetch settings: ${res.status}`);
+                const json = await res.json();
+                const nextSettings = json?.data as SettingsState;
+                if (!cancelled && nextSettings) {
+                    setSettings(nextSettings);
+                    setSavedSettings(nextSettings);
+                }
+            } catch (error) {
+                if (!cancelled) setErrorText(error instanceof Error ? error.message : "Failed to load settings");
+            } finally {
+                if (!cancelled) setHydrating(false);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    useEffect(() => {
         if (!toast) return;
         const timer = window.setTimeout(() => setToast(""), 2200);
         return () => window.clearTimeout(timer);
@@ -264,14 +299,49 @@ export default function App() {
         return () => window.clearTimeout(timer);
     }, [activeSection]);
 
-    const saveActiveSection = () => {
-        setSavedSettings((prev) => ({ ...prev, [activeSection]: settings[activeSection] }));
-        setToast("Section saved successfully");
+    const saveActiveSection = async () => {
+        setSaving(true);
+        setErrorText("");
+        try {
+            const payload = { [activeSection]: settings[activeSection] };
+            const res = await fetch(`${API_BASE}/admin/settings`, {
+                method: "PUT",
+                headers: getAuthHeaders(),
+                body: JSON.stringify(payload),
+            });
+            if (!res.ok) throw new Error(`Failed to save section: ${res.status}`);
+            const json = await res.json();
+            const nextSettings = (json?.data || settings) as SettingsState;
+            setSettings(nextSettings);
+            setSavedSettings(nextSettings);
+            setToast("Section saved successfully");
+        } catch (error) {
+            setErrorText(error instanceof Error ? error.message : "Failed to save section");
+        } finally {
+            setSaving(false);
+        }
     };
 
-    const saveAll = () => {
-        setSavedSettings(settings);
-        setToast("All settings saved");
+    const saveAll = async () => {
+        setSaving(true);
+        setErrorText("");
+        try {
+            const res = await fetch(`${API_BASE}/admin/settings`, {
+                method: "PUT",
+                headers: getAuthHeaders(),
+                body: JSON.stringify(settings),
+            });
+            if (!res.ok) throw new Error(`Failed to save all settings: ${res.status}`);
+            const json = await res.json();
+            const nextSettings = (json?.data || settings) as SettingsState;
+            setSettings(nextSettings);
+            setSavedSettings(nextSettings);
+            setToast("All settings saved");
+        } catch (error) {
+            setErrorText(error instanceof Error ? error.message : "Failed to save all settings");
+        } finally {
+            setSaving(false);
+        }
     };
 
     const resetActiveSection = () => {
@@ -317,6 +387,40 @@ export default function App() {
         setToast("Critical permission updated");
         setPendingPermissionChange(null);
         setShowConfirmModal(false);
+    };
+
+    const testIntegrationConnection = async () => {
+        try {
+            const res = await fetch(`${API_BASE}/admin/settings/integrations/test`, {
+                method: "POST",
+                headers: getAuthHeaders(),
+                body: JSON.stringify({ provider: "chapa", webhookUrl: settings.integrations.webhookUrl }),
+            });
+            if (!res.ok) throw new Error(`Failed integration test: ${res.status}`);
+            const json = await res.json();
+            setToast(json?.data?.message || "Integration test completed");
+        } catch (error) {
+            setErrorText(error instanceof Error ? error.message : "Failed to test integration");
+        }
+    };
+
+    const regenerateApiKey = async () => {
+        try {
+            const res = await fetch(`${API_BASE}/admin/settings/integrations/regenerate-key`, {
+                method: "POST",
+                headers: getAuthHeaders(),
+            });
+            if (!res.ok) throw new Error(`Failed to regenerate key: ${res.status}`);
+            const json = await res.json();
+            const nextKey = json?.data?.apiKey as string;
+            if (nextKey) {
+                setSettings((prev) => ({ ...prev, integrations: { ...prev.integrations, apiKey: nextKey } }));
+                setSavedSettings((prev) => ({ ...prev, integrations: { ...prev.integrations, apiKey: nextKey } }));
+            }
+            setToast("API key regenerated");
+        } catch (error) {
+            setErrorText(error instanceof Error ? error.message : "Failed to regenerate key");
+        }
     };
 
     const renderSection = () => {
@@ -954,8 +1058,8 @@ export default function App() {
                     </div>
 
                     <div className="flex flex-wrap gap-2">
-                        <button className="rounded-xl border border-stone-200 px-3 py-2 text-sm">Test connection</button>
-                        <button className="rounded-xl border border-stone-200 px-3 py-2 text-sm">Regenerate key</button>
+                        <button onClick={testIntegrationConnection} className="rounded-xl border border-stone-200 px-3 py-2 text-sm">Test connection</button>
+                        <button onClick={regenerateApiKey} className="rounded-xl border border-stone-200 px-3 py-2 text-sm">Regenerate key</button>
                     </div>
 
                     {!hasConnected ? (
@@ -1091,13 +1195,22 @@ export default function App() {
                                 </button>
                                 <button
                                     onClick={saveAll}
+                                    disabled={saving || hydrating}
                                     className="inline-flex items-center gap-2 rounded-xl bg-[#C6A75E] px-4 py-2 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:shadow-sm"
                                 >
-                                    <Save className="h-4 w-4" /> Save All
+                                    <Save className="h-4 w-4" /> {saving ? "Saving..." : "Save All"}
                                 </button>
                             </div>
                         </div>
                     </header>
+
+                    {errorText ? (
+                        <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{errorText}</div>
+                    ) : null}
+
+                    {hydrating ? (
+                        <div className="mb-4 rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm text-stone-500">Loading saved settings...</div>
+                    ) : null}
 
                     <div className="space-y-5">{renderSection()}</div>
 
