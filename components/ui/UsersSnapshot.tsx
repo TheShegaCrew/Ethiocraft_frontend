@@ -1,7 +1,7 @@
 "use client"
 import React from 'react';
 
-type User = { name: string; role: string };
+type User = { id?: string; name: string; role: string };
 
 interface Props {
   usersSnapshot: User[];
@@ -17,7 +17,7 @@ export default function UsersSnapshot({ usersSnapshot, setActiveNav, showFeedbac
       </h3>
       <div className="mt-4 space-y-3">
         {usersSnapshot.map((user) => (
-          <div key={user.name} className="flex items-center justify-between">
+          <div key={user.id || user.name} className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="h-8 w-8 rounded-full bg-[#dccfbd]" />
               <p className="text-sm">{user.name}</p>
