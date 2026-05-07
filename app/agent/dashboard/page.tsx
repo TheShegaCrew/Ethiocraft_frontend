@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { ChangeEvent, useState } from 'react'
 import { Footer } from '@/components/shared/footer'
 import { DashboardHeader } from '@/components/shared/dashboard-header'
 import { Button } from '@/components/ui/button'
@@ -22,6 +22,7 @@ import {
   Edit
 } from 'lucide-react'
 import Link from 'next/link'
+import { toast } from 'react-toastify'
 
 
 export default function AgentDashboard() {
@@ -34,6 +35,19 @@ export default function AgentDashboard() {
   // Selection States
   const [selectedTask, setSelectedTask] = useState<any>(null)
   const [selectedShipment, setSelectedShipment] = useState<any>(null)
+  const [verificationTasksData, setVerificationTasksData] = useState([
+    { id: 'VT-101', type: 'Artisan Verification', name: 'Bekele Wolde', location: 'Addis Ababa', date: 'Dec 16, 2024', status: 'Pending', artisanPhone: '+251 911 345 678', artisanEmail: 'bekele.wolde@ethiocraft.example', sampleTitle: 'Hand-carved Coffee Table Set' },
+    { id: 'VT-102', type: 'Product Authenticity Check', name: 'Traditional Habesha Dress', location: 'Hawassa', date: 'Dec 15, 2024', status: 'Pending', artisanPhone: '+251 923 567 234', artisanEmail: 'selamawit.tesfaye@ethiocraft.example', sampleTitle: 'Traditional Habesha Dress' },
+    { id: 'VT-103', type: 'Artisan Documents', name: 'Selam Adeyemi', location: 'Dire Dawa', date: 'Dec 14, 2024', status: 'Completed', artisanPhone: '+251 934 998 211', artisanEmail: 'selam.adeyemi@ethiocraft.example', sampleTitle: 'Clay Pottery Collection' },
+  ])
+  const [verificationForm, setVerificationForm] = useState({
+    measurements: '',
+    materials: '',
+    culturalNotes: '',
+    suggestedPricing: '',
+  })
+  const [verificationErrors, setVerificationErrors] = useState<{ measurements?: string }>({})
+  const [uploadedMediaFiles, setUploadedMediaFiles] = useState<File[]>([])
 
   // Demo state to show the activation banner
   const [accountStatus, setAccountStatus] = useState<'pending_activation' | 'incomplete_profile' | 'active'>('pending_activation')
@@ -43,12 +57,6 @@ export default function AgentDashboard() {
     { title: 'Pending Tasks', value: '12', icon: Clock },
     { title: 'Active Shipments', value: '34', icon: Truck },
     { title: 'Issues Flagged', value: '3', icon: AlertCircle },
-  ]
-
-  const verificationTasks = [
-    { id: 'VT-101', type: 'Artisan Verification', name: 'Bekele Wolde', location: 'Addis Ababa', date: 'Dec 16, 2024', status: 'Pending' },
-    { id: 'VT-102', type: 'Product Authenticity Check', name: 'Traditional Habesha Dress', location: 'Hawassa', date: 'Dec 15, 2024', status: 'Pending' },
-    { id: 'VT-103', type: 'Artisan Documents', name: 'Selam Adeyemi', location: 'Dire Dawa', date: 'Dec 14, 2024', status: 'Completed' },
   ]
 
   const shipments = [
@@ -84,12 +92,60 @@ export default function AgentDashboard() {
 
   const openVerificationModal = (task: any) => {
     setSelectedTask(task)
+    setVerificationForm({
+      measurements: '',
+      materials: '',
+      culturalNotes: '',
+      suggestedPricing: '',
+    })
+    setVerificationErrors({})
+    setUploadedMediaFiles([])
     setIsVerificationModalOpen(true)
   }
 
   const openShipmentModal = (shipment: any) => {
     setSelectedShipment(shipment)
     setIsShipmentUpdateModalOpen(true)
+  }
+
+  const handleMediaUpload = (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || [])
+    if (!files.length) return
+    setUploadedMediaFiles((prev) => [...prev, ...files])
+  }
+
+  const removeUploadedMedia = (fileName: string) => {
+    setUploadedMediaFiles((prev) => prev.filter((file) => file.name !== fileName))
+  }
+
+  const handleSubmitVerification = () => {
+    if (!verificationForm.measurements.trim()) {
+      setVerificationErrors({ measurements: 'Measurements are required.' })
+      toast.error('Please fill in mandatory measurements before submission.')
+      return
+    }
+
+    const metadataPayload = {
+      draftStatus: 'Product Draft',
+      linkedSampleId: selectedTask?.id,
+      sampleStatusUpdate: 'Verified',
+      submittedAt: new Date().toISOString(),
+      agentInput: {
+        measurements: verificationForm.measurements,
+        materials: verificationForm.materials,
+        culturalNotes: verificationForm.culturalNotes,
+        suggestedPricing: verificationForm.suggestedPricing,
+        mediaFiles: uploadedMediaFiles.map((file) => file.name),
+      },
+    }
+
+    setVerificationTasksData((prev) =>
+      prev.map((task) => (task.id === selectedTask?.id ? { ...task, status: 'Completed' } : task)),
+    )
+
+    console.log('Verification submission metadata:', metadataPayload)
+    toast.success('Verification submitted. Product Draft saved and sample marked as Verified.')
+    setIsVerificationModalOpen(false)
   }
 
   return (
@@ -175,7 +231,7 @@ export default function AgentDashboard() {
               </div>
 
               <div className="space-y-3">
-                {verificationTasks.map((task) => (
+                {verificationTasksData.map((task) => (
                   <Card key={task.id} className="p-4">
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                       <div>
@@ -375,7 +431,7 @@ export default function AgentDashboard() {
 
       {/* 4. Physical Verification Data Entry & Media Upload Modal */}
       <Dialog open={isVerificationModalOpen} onOpenChange={setIsVerificationModalOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-aeonik text-lg uppercase tracking-[0.12em]">
               Verification Data Entry <span className="text-muted-foreground font-mono text-sm normal-case ml-2">{selectedTask?.id}</span>
@@ -393,19 +449,48 @@ export default function AgentDashboard() {
                 <h3 className="font-aeonik text-sm uppercase tracking-[0.12em] font-bold border-b border-border pb-2">Physical Specs</h3>
                 <div className="space-y-2">
                   <label className="text-xs font-semibold text-muted-foreground uppercase">Materials Verified</label>
-                  <textarea className="w-full p-3 border border-border rounded bg-background min-h-[60px]" placeholder="E.g., 100% pure cotton, natural dye..." />
+                  <textarea
+                    className="w-full p-3 border border-border rounded bg-background min-h-[60px]"
+                    placeholder="E.g., 100% pure cotton, natural dye..."
+                    value={verificationForm.materials}
+                    onChange={(e) => setVerificationForm((prev) => ({ ...prev, materials: e.target.value }))}
+                  />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold text-muted-foreground uppercase">Dimensions / Weight</label>
-                  <input type="text" className="w-full p-3 border border-border rounded bg-background" placeholder="20cm x 15cm, 1.2kg" />
+                  <label className="text-xs font-semibold text-muted-foreground uppercase">Measurements / Dimensions / Weight *</label>
+                  <input
+                    type="text"
+                    required
+                    className={`w-full p-3 border rounded bg-background ${verificationErrors.measurements ? 'border-destructive' : 'border-border'}`}
+                    placeholder="20cm x 15cm, 1.2kg"
+                    value={verificationForm.measurements}
+                    onChange={(e) => {
+                      setVerificationForm((prev) => ({ ...prev, measurements: e.target.value }))
+                      if (verificationErrors.measurements) setVerificationErrors({})
+                    }}
+                  />
+                  {verificationErrors.measurements && (
+                    <p className="text-xs text-destructive">{verificationErrors.measurements}</p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-semibold text-muted-foreground uppercase">Cultural Context / Notes</label>
-                  <textarea className="w-full p-3 border border-border rounded bg-background min-h-[60px]" placeholder="Confirm cultural authenticity markers..." />
+                  <textarea
+                    className="w-full p-3 border border-border rounded bg-background min-h-[60px]"
+                    placeholder="Confirm cultural authenticity markers..."
+                    value={verificationForm.culturalNotes}
+                    onChange={(e) => setVerificationForm((prev) => ({ ...prev, culturalNotes: e.target.value }))}
+                  />
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-semibold text-muted-foreground uppercase">Pricing Recommendation (USD)</label>
-                  <input type="number" className="w-full p-3 border border-border rounded bg-background" placeholder="Suggest retail price..." />
+                  <input
+                    type="number"
+                    className="w-full p-3 border border-border rounded bg-background"
+                    placeholder="Suggest retail price..."
+                    value={verificationForm.suggestedPricing}
+                    onChange={(e) => setVerificationForm((prev) => ({ ...prev, suggestedPricing: e.target.value }))}
+                  />
                 </div>
               </div>
 
@@ -421,9 +506,51 @@ export default function AgentDashboard() {
                     </div>
                     <p className="text-sm font-medium mb-1">Drag & drop media files</p>
                     <p className="text-xs text-muted-foreground mb-4">Supports JPG, PNG, MP4, GLTF (max 50MB)</p>
-                    <Button type="button" variant="outline" size="sm">Browse Files</Button>
+                    <input
+                      id="verification-media-upload"
+                      type="file"
+                      className="hidden"
+                      multiple
+                      accept=".jpg,.jpeg,.png,.mp4,.gltf"
+                      onChange={handleMediaUpload}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => document.getElementById('verification-media-upload')?.click()}
+                    >
+                      Browse Files
+                    </Button>
                   </div>
+                  {uploadedMediaFiles.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase">Uploaded Media</p>
+                      <div className="space-y-1">
+                        {uploadedMediaFiles.map((file) => (
+                          <div key={file.name} className="flex items-center justify-between bg-muted/30 px-3 py-2 rounded border border-border">
+                            <span className="text-xs truncate max-w-[220px]">{file.name}</span>
+                            <Button type="button" variant="ghost" size="sm" onClick={() => removeUploadedMedia(file.name)}>
+                              Remove
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
+              </div>
+            </div>
+
+            <div className="bg-muted/30 p-4 rounded-lg border border-border">
+              <h4 className="font-semibold text-sm mb-2">Artisan & Sample Details (Pre-populated)</h4>
+              <div className="text-sm space-y-1 text-muted-foreground">
+                <p><span className="font-medium text-foreground">Sample:</span> {selectedTask?.sampleTitle || selectedTask?.name}</p>
+                <p><span className="font-medium text-foreground">Sample ID:</span> {selectedTask?.id}</p>
+                <p><span className="font-medium text-foreground">Artisan Name:</span> {selectedTask?.name}</p>
+                <p><span className="font-medium text-foreground">Artisan Phone:</span> {selectedTask?.artisanPhone || 'Not available'}</p>
+                <p><span className="font-medium text-foreground">Artisan Email:</span> {selectedTask?.artisanEmail || 'Not available'}</p>
+                <p><span className="font-medium text-foreground">Meeting Location:</span> {selectedTask?.location}</p>
               </div>
             </div>
 
@@ -435,7 +562,7 @@ export default function AgentDashboard() {
                 <DialogClose asChild>
                   <Button variant="outline">Save Draft</Button>
                 </DialogClose>
-                <Button>Submit Verification</Button>
+                <Button onClick={handleSubmitVerification}>Submit Verification</Button>
               </div>
             </div>
           </div>
