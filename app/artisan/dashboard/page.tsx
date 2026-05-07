@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Header } from '@/components/shared/header'
 import { Footer } from '@/components/shared/footer'
+import { DashboardHeader } from '@/components/shared/dashboard-header'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -20,14 +20,12 @@ import {
   User,
   Clock,
   CheckCircle,
-  XCircle,
-  Activity
+  XCircle
 } from 'lucide-react'
 import Link from 'next/link'
 
 export default function ArtisanDashboard() {
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false)
-  const [isNotificationsModalOpen, setIsNotificationsModalOpen] = useState(false)
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false)
   const summaryCards = [
     {
@@ -64,13 +62,7 @@ export default function ArtisanDashboard() {
       label: 'Submit Sample',
       onClick: () => setIsSubmitModalOpen(true),
     },
-    {
-      title: 'Read notifications',
-      description: 'See sample approvals, order updates, and payout alerts.',
-      icon: Bell,
-      label: 'Open Notifications',
-      onClick: () => setIsNotificationsModalOpen(true),
-    },
+
     {
       title: 'Update profile',
       description: 'Manage contact information and bank details.',
@@ -78,6 +70,7 @@ export default function ArtisanDashboard() {
       label: 'Edit Profile',
       onClick: () => setIsProfileModalOpen(true),
     },
+
   ]
 
   const recentOrders = [
@@ -171,6 +164,7 @@ export default function ArtisanDashboard() {
       unread: false,
     },
   ]
+  const unreadNotifications = notifications.filter((note) => note.unread).length
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -191,24 +185,24 @@ export default function ArtisanDashboard() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col font-inter">
-      <Header />
+      <DashboardHeader
+        statusText="Real-time socket connected"
+        notifications={notifications.map((note) => ({
+          id: note.id,
+          message: note.message,
+          time: note.time,
+          unread: note.unread,
+        }))}
+        unreadNotifications={unreadNotifications}
+      />
 
-      <main className="flex-1 pt-24 md:pt-28">
+      <main className="flex-1 pt-28 md:pt-32">
         <div className="container mx-auto px-4 py-8">
           {/* Welcome Section */}
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-            <div>
-              <h1 className="font-druk-medium text-3xl md:text-4xl uppercase tracking-[0.04em] mb-2">Artisan Dashboard</h1>
-              <p className="font-inter text-muted-foreground">Manage your shop, products, and orders</p>
-            </div>
-            
-            {/* Real-time Status Indicator */}
-            <div className="flex items-center gap-2 bg-muted/50 px-3 py-1.5 rounded-full border border-border">
-              <Activity className="w-4 h-4 text-green-500 animate-pulse" />
-              <span className="font-inter text-xs text-muted-foreground">Real-time socket connected</span>
-            </div>
+          <div className="mb-8">
+            <h1 className="font-druk-medium text-3xl md:text-4xl uppercase tracking-[0.04em] mb-2">Artisan Dashboard</h1>
+            <p className="font-inter text-muted-foreground">Manage your shop, products, and orders</p>
           </div>
-
           {/* Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             {summaryCards.map((card, i) => {
@@ -229,7 +223,7 @@ export default function ArtisanDashboard() {
           </div>
 
           {/* Quick Actions */}
-          <div className="grid gap-4 mb-8 md:grid-cols-3">
+          <div className="grid gap-4 mb-8 md:grid-cols-2">
             {quickActions.map((action, index) => {
               const Icon = action.icon
               return (
@@ -402,41 +396,6 @@ export default function ArtisanDashboard() {
               </DialogClose>
               <Button>Submit for Review</Button>
             </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Notifications Modal */}
-      <Dialog open={isNotificationsModalOpen} onOpenChange={setIsNotificationsModalOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="font-aeonik text-lg uppercase tracking-[0.12em]">Notifications</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <p className="text-sm text-muted-foreground">Recent updates and alerts</p>
-              <Button variant="outline" size="sm">Mark all as read</Button>
-            </div>
-            <div className="divide-y divide-border max-h-96 overflow-y-auto">
-              {notifications.map((note) => (
-                <div key={note.id} className={`p-4 flex items-start gap-4 transition-colors hover:bg-muted/50 ${note.unread ? 'bg-muted/20' : ''}`}>
-                  <div className="mt-1">
-                    {note.type === 'order' && <ShoppingCart className="w-5 h-5 text-primary" />}
-                    {note.type === 'approval' && <CheckCircle className="w-5 h-5 text-green-500" />}
-                    {note.type === 'rejection' && <XCircle className="w-5 h-5 text-destructive" />}
-                    {note.type === 'system' && <Bell className="w-5 h-5 text-secondary" />}
-                  </div>
-                  <div className="flex-1">
-                    <p className={`text-sm ${note.unread ? 'font-bold' : 'font-medium'}`}>{note.message}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{note.time}</p>
-                  </div>
-                  {note.unread && <div className="w-2 h-2 rounded-full bg-primary mt-2"></div>}
-                </div>
-              ))}
-            </div>
-            <DialogClose asChild>
-              <Button className="w-full">Close</Button>
-            </DialogClose>
           </div>
         </DialogContent>
       </Dialog>
