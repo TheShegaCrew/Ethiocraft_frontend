@@ -31,11 +31,9 @@ export default function EditPage() {
 
     const fetchSample = async () => {
       try {
-        const token = localStorage.getItem('token')
         const res = await fetch(`http://localhost:4000/api/v1/admin/products/samples/${id}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
         })
         if (!res.ok) throw new Error('Failed to fetch')
         const json = await res.json()
@@ -75,7 +73,7 @@ export default function EditPage() {
     e.preventDefault()
     setSaving(true)
     try {
-      const token = localStorage.getItem('token')
+      
       const payload = {
         title: form.title,
         description: form.description,
@@ -91,8 +89,8 @@ export default function EditPage() {
 
       const res = await fetch(`http://localhost:4000/api/v1/admin/samples/${id}`, {
         method: 'PATCH',
+        credentials: 'include',
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(payload)

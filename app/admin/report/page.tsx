@@ -515,9 +515,7 @@ function App() {
     setFetchError("");
     try {
       const base = getApiBase();
-      const token = localStorage.getItem("token") || localStorage.getItem("authToken");
-      const headers: Record<string, string> = {};
-      if (token) headers.Authorization = `Bearer ${token}`;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       const { dateFrom, dateTo } = getReportDateRange(dateRange, customFrom, customTo);
       const params = new URLSearchParams({
         type,
@@ -525,7 +523,7 @@ function App() {
         dateTo,
         limit: "500",
       });
-      const res = await fetch(`${base}/admin/dashboard/reports?${params.toString()}`, { headers });
+      const res = await fetch(`${base}/admin/dashboard/reports?${params.toString()}`, { headers, credentials: 'include' });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(json?.message || "Failed to load report");

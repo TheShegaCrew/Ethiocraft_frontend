@@ -1,3 +1,21 @@
+const API_BASE_URL =
+  (process.env.NEXT_PUBLIC_API_BASE_URL ?? process.env.NEXT_PUBLIC_BASE_URL ?? "").replace(/\/$/, "") ||
+  "http://localhost:4000/api/v1";
+
+export function buildApiUrl(path: string): string {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${API_BASE_URL}${normalizedPath}`;
+}
+
+export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers ?? {});
+
+  return fetch(buildApiUrl(path), {
+    ...init,
+    headers,
+    credentials: "include",
+  });
+}
 /**
  * EthioCraft API Client
  * Base URL: process.env.NEXT_PUBLIC_BASE_URL (e.g. http://localhost:4000/api/v1)
@@ -348,7 +366,7 @@ export async function fetchProductById(
 }
 
 export async function fetchOrders(
-  token: string,
+  _token: string | null = null,
   params: OrderListParams = {}
 ): Promise<OrderListResponse> {
   const url = new URL(`${BASE_URL}/orders`);
@@ -357,11 +375,8 @@ export async function fetchOrders(
   if (params.limit) url.searchParams.set("limit", String(params.limit));
   if (params.status) url.searchParams.set("status", params.status);
 
-  const res = await fetch(url.toString(), {
+  const res = await apiFetch(`/orders`, {
     cache: "no-store",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
   });
 
   if (!res.ok) {
@@ -375,13 +390,10 @@ export async function fetchOrders(
 
 export async function fetchOrderById(
   orderId: string,
-  token: string
+  _token: string | null = null
 ): Promise<ApiOrder> {
-  const res = await fetch(`${BASE_URL}/orders/${orderId}`, {
+  const res = await apiFetch(`/orders/${orderId}`, {
     cache: "no-store",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
   });
 
   if (!res.ok) {
@@ -395,13 +407,10 @@ export async function fetchOrderById(
 
 export async function fetchOrderTracking(
   orderId: string,
-  token: string
+  _token: string | null = null
 ): Promise<ApiOrderTracking> {
-  const res = await fetch(`${BASE_URL}/orders/${orderId}/tracking`, {
+  const res = await apiFetch(`/orders/${orderId}/tracking`, {
     cache: "no-store",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
   });
 
   if (!res.ok) {
@@ -430,20 +439,16 @@ export async function fetchOrderTracking(
  */
 export async function submitReview(
   productId: string,
-  token: string,
+  _token: string | null,
   payload: { rating: number; comment: string }
 ): Promise<ApiReview> {
-  const res = await fetch(
-    `${BASE_URL}/marketplace/products/${productId}/reviews`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(payload),
-    }
-  );
+  const res = await apiFetch(`/marketplace/products/${productId}/reviews`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));

@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import GenericSection from './GenericSection';
 import { useRouter } from 'next/navigation';
+import { apiFetch } from '@/lib/api';
 
 export default function ApprovalsSection(props: any) {
   const router = useRouter();
@@ -11,13 +12,7 @@ export default function ApprovalsSection(props: any) {
   useEffect(() => {
     const fetchPendingSamples = async () => {
       try {
-        const base = (process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, '') || 'http://localhost:4000/api/v1';
-        const token = localStorage.getItem('token') || localStorage.getItem('authToken');
-        const res = await fetch(`${base}/admin/samples/pending?limit=20`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
+        const res = await apiFetch('/admin/samples/pending?limit=20');
         if (!res.ok) throw new Error('Failed to fetch pending samples');
         const json = await res.json();
         

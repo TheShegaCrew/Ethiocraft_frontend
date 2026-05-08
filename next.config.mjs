@@ -16,6 +16,12 @@ const nextConfig = {
   // Proxy all /artisan/* requests to the backend so relative fetch URLs work.
   async rewrites() {
     return [
+      // Proxy frontend `/api/*` to backend during development so cookies
+      // are treated same-site by the browser (avoids cross-site cookie issues).
+      {
+        source: '/api/:path*',
+        destination: `${BACKEND_URL}/:path*`,
+      },
       {
         source: '/artisan/:path*',
         destination: `${BACKEND_URL}/artisan/:path*`,

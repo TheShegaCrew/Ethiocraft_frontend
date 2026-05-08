@@ -5,11 +5,16 @@ import { useRouter } from 'next/navigation';
 import { Header } from '@/components/shared/header';
 import { Footer } from '@/components/shared/footer';
 import { useAuth } from '@/lib/auth-context';
+import { dashboardForRole } from '@/lib/permissions';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000/api/v1';
+// If NEXT_PUBLIC_API_BASE_URL is set (e.g. production), use it.
+// Otherwise use the dev proxy path so requests are same-origin.
+const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
+  ? `${process.env.NEXT_PUBLIC_API_BASE_URL}`
+  : '';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address.'),
@@ -17,16 +22,6 @@ const loginSchema = z.object({
 });
 
 type LoginFormData = z.infer<typeof loginSchema>;
-
-/** Maps a server role string to its dashboard path. */
-function dashboardForRole(role: string): string {
-  switch (role.toUpperCase()) {
-    case 'ADMIN':   return '/admin/dashboard';
-    case 'AGENT':   return '/agent/dashboard';
-    case 'ARTISAN': return '/artisan/dashboard';
-    default:        return '/customer/dashboard';
-  }
-}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -53,8 +48,10 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const res = await fetch(`${BASE_URL}/auth/login`, {
+      const url = BASE_URL ? `${BASE_URL}/auth/login` : `/api/auth/login`;
+      const res = await fetch(url, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(values),
       });
@@ -63,24 +60,21 @@ export default function LoginPage() {
 
       if (!res.ok) {
         const msg = json?.message ?? json?.error ?? 'Invalid credentials. Please try again.';
+        if (typeof msg === 'string' && msg.toLowerCase().includes('email is not verified')) {
+          router.push(`/auth/verify-otp?email=${encodeURIComponent(values.email)}`);
+          return;
+        }
         setErrorMessage(msg);
         return;
       }
 
-      // ── Extract token & role ──────────────────────────────────────────────
+      // ── Extract role and update auth state ───────────────────────────────
       const payload = json?.data ?? json;
-      const token: string | undefined = payload?.token ?? payload?.accessToken;
       const role: string = (
         payload?.role ?? payload?.user?.role ?? 'CUSTOMER'
       ).toUpperCase();
 
-      if (!token) {
-        setErrorMessage('Login succeeded but no token was returned. Contact support.');
-        return;
-      }
-
-      // ── Persist & update global auth state ────────────────────────────────
-      login(token, role as any);
+      login(role as any);
 
       // ── Redirect by role ──────────────────────────────────────────────────
       router.push(dashboardForRole(role));
@@ -180,12 +174,16 @@ export default function LoginPage() {
                   </p>
                 )}
 
+                <div className="text-right mt-2">
+                  <a href="/auth/forgot-password" className="text-sm text-[#1C1C1C] hover:underline">Forgot password?</a>
+                </div>
+
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="font-aeonik w-full bg-[#1C1C1C] text-[#FAFAF9] hover:opacity-90 rounded-full px-5 py-3.5 mt-6 text-sm transition-all duration-300 disabled:opacity-75 disabled:cursor-not-allowed shadow-sm"
+                  className="font-aeonik w-full bg-primary text-primary-foreground hover:bg-primary/90 rounded-full px-5 py-3.5 mt-6 text-sm transition-all duration-300 disabled:opacity-75 disabled:cursor-not-allowed shadow-sm"
                 >
-                  {isLoading ? 'Signing in…' : 'Submit'}
+                  {isLoading ? 'Signing in…' : 'Sign In'}
                 </button>
               </form>
 

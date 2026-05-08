@@ -8,25 +8,25 @@ import {
     ChevronDown,
     ChevronRight,
     CreditCard,
-    History,
-    Lock,
-    Loader2,
-    Pencil,
-    ShieldAlert,
-    ShoppingBag,
-    UserCheck,
-    Box,
-    ClipboardCheck,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
-
-type Role = "customer" | "artisan" | "agent" | "admin";
-type Status = "active" | "suspended";
-type TabKey = "activity" | "orders" | "notes" | "tasks";
-
-type Note = {
-    id: number;
-    text: string;
+            try {
+                setRoleDetailsLoading(true);
+                const base = (process.env.NEXT_PUBLIC_BASE_URL ?? "").replace(/\/$/, "") || "http://localhost:4000/api/v1";
+                const search = encodeURIComponent(userData?.email || `${userData?.firstName || ""} ${userData?.lastName || ""}`.trim());
+                const res = await fetch(`${base}/admin/users/role/ARTISAN?search=${search}&page=1&limit=10`, {
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                });
+                if (!res.ok) throw new Error(`Error: ${res.status}`);
+                const json = await res.json();
+                const fetched = (json?.data?.items || []).find((item: any) => item.id === userData.id);
+                if (fetched?.artisanProfile) {
+                    setUserData((prev: any) => ({ ...prev, artisanProfile: fetched.artisanProfile }));
+                }
+            } catch (err) {
+                console.error("Failed to hydrate artisan role details:", err);
+            } finally {
+                setRoleDetailsLoading(false);
+            }
     author: string;
     createdAt: string;
 };
@@ -41,14 +41,14 @@ type ActivityLog = {
 const ROLE_LABEL: Record<Role, string> = {
     customer: "Customer",
     artisan: "Artisan",
-    agent: "Agent",
+    verification_agent: "Verification Agent",
     admin: "Admin",
 };
 
 const ROLE_UPPER: Record<Role, string> = {
     customer: "CUSTOMER",
     artisan: "ARTISAN",
-    agent: "VERIFICATION_AGENT",
+    verification_agent: "VERIFICATION_AGENT",
     admin: "ADMIN",
 };
 
@@ -91,7 +91,7 @@ const riskMessagesByRole: Record<Role, string[]> = {
         "Rejected samples above threshold (5 in last 30 days).",
         "Verification note unresolved for 9 days.",
     ],
-    agent: [
+    verification_agent: [
         "Task completion dropped below 70% this week.",
         "Two active assignments are overdue.",
     ],
@@ -112,7 +112,7 @@ function statusStyles(status: Status) {
 
 function roleStyles(role: Role) {
     if (role === "admin") return "bg-violet-50 text-violet-700 border-violet-200";
-    if (role === "agent") return "bg-blue-50 text-blue-700 border-blue-200";
+    if (role === "verification_agent") return "bg-blue-50 text-blue-700 border-blue-200";
     if (role === "artisan") return "bg-amber-50 text-amber-700 border-amber-200";
     return "bg-neutral-100 text-neutral-700 border-neutral-200";
 }
@@ -162,13 +162,13 @@ export default function UserDetailPage() {
 
     // Fetch Agent Tasks
     useEffect(() => {
-        if (activeTab === "tasks" && role === "agent") {
+        if (activeTab === "tasks" && role === "verification_agent") {
             const fetchTasks = async () => {
                 try {
                     const base = (process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, '') || 'http://localhost:4000/api/v1';
-                    const token = localStorage.getItem('token');
                     const res = await fetch(`${base}/admin/products/samples`, {
-                        headers: { Authorization: `Bearer ${token}` }
+                        credentials: 'include',
+                        headers: { 'Content-Type': 'application/json' },
                     });
                     if (!res.ok) return;
                     const data = await res.json();
@@ -190,11 +190,11 @@ export default function UserDetailPage() {
         if (activeTab !== "orders" || !id) return;
         const fetchOrders = async () => {
             setOrdersLoading(true);
-            try {
+                try {
                 const base = (process.env.NEXT_PUBLIC_BASE_URL ?? "").replace(/\/$/, "") || "http://localhost:4000/api/v1";
-                const token = localStorage.getItem("token");
                 const res = await fetch(`${base}/admin/orders?userId=${id}&page=${ordersPage}&limit=10`, {
-                    headers: { Authorization: `Bearer ${token}` },
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
                 });
                 if (!res.ok) throw new Error(`Error: ${res.status}`);
                 const json = await res.json();
@@ -212,11 +212,11 @@ export default function UserDetailPage() {
 
     useEffect(() => {
         const fetchUser = async () => {
-            try {
+                try {
                 const base = (process.env.NEXT_PUBLIC_BASE_URL ?? "").replace(/\/$/, "") || "http://localhost:4000/api/v1";
-                const token = localStorage.getItem("token");
                 const res = await fetch(`${base}/admin/users/${id}`, {
-                    headers: { Authorization: `Bearer ${token}` },
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
                 });
                 if (!res.ok) throw new Error(`Error: ${res.status}`);
                 const json = await res.json();
@@ -225,7 +225,7 @@ export default function UserDetailPage() {
 
                 // Sync initial states
                 let r = (data.role?.toLowerCase() || "customer") as Role;
-                if (data.role === 'VERIFICATION_AGENT') r = 'agent';
+                if (data.role === 'VERIFICATION_AGENT') r = 'verification_agent';
                 if (data.role === 'USER') r = 'customer';
 
                 setRole(r);
@@ -246,25 +246,25 @@ export default function UserDetailPage() {
             name: "Loading...",
             email: "...",
             phone: "...",
-            id: id,
-            joined: "...",
-            lastActive: "...",
-            avatar: "https://images.unsplash.com/photo-1544723795-3fb6469f5b39?auto=format&fit=crop&w=300&q=80"
-        };
-
-        return {
-            name: `${userData.firstName || ""} ${userData.lastName || ""}`.trim() || userData.name || "Unknown User",
-            email: userData.email || "No email",
-            phone: userData.phone || userData.phoneNumber || "No phone",
-            id: userData.id || id,
-            joined: userData.createdAt ? new Date(userData.createdAt).toLocaleDateString() : "N/A",
-            lastActive: "Recent",
-            avatar: userData.avatarUrl || userData.avatar || "https://images.unsplash.com/photo-1544723795-3fb6469f5b39?auto=format&fit=crop&w=300&q=80",
-        };
-    }, [userData, id]);
-
-    const roleDetails = useMemo(() => {
-        const profile = userData?.artisanProfile || {};
+                try {
+                setRoleDetailsLoading(true);
+                const base = (process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, '') || 'http://localhost:4000/api/v1';
+                const search = encodeURIComponent(userData?.email || `${userData?.firstName || ""} ${userData?.lastName || ""}`.trim());
+                const res = await fetch(`${base}/admin/users/role/ARTISAN?search=${search}&page=1&limit=10`, {
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                });
+                if (!res.ok) throw new Error(`Error: ${res.status}`);
+                const json = await res.json();
+                const fetched = (json?.data?.items || []).find((item: any) => item.id === userData.id);
+                if (fetched?.artisanProfile) {
+                    setUserData((prev: any) => ({ ...prev, artisanProfile: fetched.artisanProfile }));
+                }
+            } catch (err) {
+                console.error("Failed to hydrate artisan role details:", err);
+            } finally {
+                setRoleDetailsLoading(false);
+            }
         const extensionData = profile?.extensionData || {};
         const productStats = extensionData?.productStats || {};
         const sampleStats = extensionData?.sampleStats || {};
@@ -281,7 +281,7 @@ export default function UserDetailPage() {
                 approvedProducts: Number(productStats.approved ?? 0),
                 pendingSamples: Number(sampleStats.pending ?? 0),
             },
-            agent: {
+            verification_agent: {
                 assignedSamples: Number(userData?.agentSummary?.assignedSamples ?? 0),
                 approvedSamples: Number(userData?.agentSummary?.approvedSamples ?? 0),
                 rejectedSamples: Number(userData?.agentSummary?.rejectedSamples ?? 0),
@@ -295,10 +295,10 @@ export default function UserDetailPage() {
             try {
                 setRoleDetailsLoading(true);
                 const base = (process.env.NEXT_PUBLIC_BASE_URL ?? "").replace(/\/$/, "") || "http://localhost:4000/api/v1";
-                const token = localStorage.getItem("token");
                 const search = encodeURIComponent(userData?.email || `${userData?.firstName || ""} ${userData?.lastName || ""}`.trim());
                 const res = await fetch(`${base}/admin/users/role/ARTISAN?search=${search}&page=1&limit=10`, {
-                    headers: { Authorization: `Bearer ${token}` },
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
                 });
                 if (!res.ok) throw new Error(`Error: ${res.status}`);
                 const json = await res.json();
@@ -338,12 +338,11 @@ export default function UserDetailPage() {
     const handleStatusChange = async (next: Status) => {
         try {
             const base = (process.env.NEXT_PUBLIC_BASE_URL ?? "").replace(/\/$/, "") || "http://localhost:4000/api/v1";
-            const token = localStorage.getItem("token");
             const res = await fetch(`${base}/admin/users/${id}`, {
                 method: "PATCH",
+                credentials: 'include',
                 headers: { 
                     "Content-Type": "application/json",
-                    Authorization: `Bearer ${token}` 
                 },
                 body: JSON.stringify({ status: STATUS_UPPER[next] })
             });
@@ -365,12 +364,11 @@ export default function UserDetailPage() {
     const handleRoleUpdate = async () => {
         try {
             const base = (process.env.NEXT_PUBLIC_BASE_URL ?? "").replace(/\/$/, "") || "http://localhost:4000/api/v1";
-            const token = localStorage.getItem("token");
             const res = await fetch(`${base}/admin/users/${id}`, {
                 method: "PATCH",
+                credentials: 'include',
                 headers: { 
                     "Content-Type": "application/json",
-                    Authorization: `Bearer ${token}` 
                 },
                 body: JSON.stringify({ role: ROLE_UPPER[draftRole] })
             });
@@ -421,12 +419,11 @@ export default function UserDetailPage() {
     const assignSample = async (sampleId: string) => {
         try {
             const base = (process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, '') || 'http://localhost:4000/api/v1';
-            const token = localStorage.getItem('token');
             const res = await fetch(`${base}/admin/products/samples/${sampleId}`, {
                 method: 'PATCH',
+                credentials: 'include',
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`
                 },
                 body: JSON.stringify({ assignedVerifierId: id })
             });
@@ -453,12 +450,12 @@ export default function UserDetailPage() {
             icon: History,
         },
         {
-            label: role === "agent" ? "Assignments" : "Orders",
+            label: role === "verification_agent" ? "Assignments" : "Orders",
             value: role === "customer"
                 ? String(userData?.customerSummary?.totalOrders ?? "—")
                 : role === "artisan"
                     ? String(roleDetails.artisan.products ?? "—")
-                    : String(roleDetails.agent.assignedSamples ?? "—"),
+                    : String(roleDetails.verification_agent.assignedSamples ?? "—"),
             icon: ShoppingBag,
         },
         {
@@ -476,7 +473,7 @@ export default function UserDetailPage() {
                     : "—"
                 : role === "artisan"
                     ? (roleDetails.artisan.region ?? "—")
-                    : String(roleDetails.agent.approvedSamples ?? "—"),
+                    : String(roleDetails.verification_agent.approvedSamples ?? "—"),
             icon: CreditCard,
         },
     ];
@@ -696,7 +693,7 @@ export default function UserDetailPage() {
                             </div>
                         )}
 
-                        {role === "agent" && (
+                        {role === "verification_agent" && (
                             <article className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-md">
                                 <h2 className="font-display text-xl uppercase tracking-[0.04em]">Agent Overview</h2>
                                 <div className="mt-6 grid grid-cols-1 gap-8 md:grid-cols-2">
@@ -707,24 +704,24 @@ export default function UserDetailPage() {
                                         </div>
                                         <div className="flex items-center justify-between text-xs">
                                             <span className="font-bold uppercase tracking-widest text-neutral-400">Approved Samples</span>
-                                            <span className="font-bold text-emerald-600">{roleDetails.agent.approvedSamples}</span>
+                                            <span className="font-bold text-emerald-600">{roleDetails.verification_agent.approvedSamples}</span>
                                         </div>
                                         <div className="flex items-center justify-between text-xs">
                                             <span className="font-bold uppercase tracking-widest text-neutral-400">Rejected Samples</span>
-                                            <span className="font-bold">{roleDetails.agent.rejectedSamples}</span>
+                                            <span className="font-bold">{roleDetails.verification_agent.rejectedSamples}</span>
                                         </div>
                                         <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-neutral-100">
-                                            <div className="h-full bg-emerald-500" style={{ width: `${Math.min(100, roleDetails.agent.assignedSamples * 10)}%` }} />
+                                            <div className="h-full bg-emerald-500" style={{ width: `${Math.min(100, roleDetails.verification_agent.assignedSamples * 10)}%` }} />
                                         </div>
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4 shadow-inner">
                                             <p className="text-[9px] font-black uppercase tracking-widest text-blue-600">Active tasks</p>
-                                            <p className="mt-1 text-3xl font-black text-blue-800">{roleDetails.agent.assignedSamples}</p>
+                                            <p className="mt-1 text-3xl font-black text-blue-800">{roleDetails.verification_agent.assignedSamples}</p>
                                         </div>
                                         <div className="rounded-2xl border border-neutral-100 bg-neutral-50/50 p-4 shadow-inner">
                                             <p className="text-[9px] font-black uppercase tracking-widest text-neutral-500">Approved</p>
-                                            <p className="mt-1 text-3xl font-black text-neutral-800">{roleDetails.agent.approvedSamples}</p>
+                                            <p className="mt-1 text-3xl font-black text-neutral-800">{roleDetails.verification_agent.approvedSamples}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -784,7 +781,7 @@ export default function UserDetailPage() {
                             <div className="mb-6 flex flex-wrap gap-7 border-b border-neutral-100 pb-4">
                                 {tabs.filter(t => {
                                     if (t.key === "orders") return role === "customer";
-                                    if (t.key === "tasks") return role === "agent";
+                                    if (t.key === "tasks") return role === "verification_agent";
                                     return true;
                                 }).map((tab) => (
                                     <button
@@ -970,7 +967,7 @@ export default function UserDetailPage() {
                                     </div>
                                 )}
 
-                                {activeTab === "tasks" && role === "agent" && (
+                                {activeTab === "tasks" && role === "verification_agent" && (
                                     <div className="mt-2 space-y-6">
                                         <div className="flex justify-between items-center mb-4">
                                             <h3 className="text-sm font-bold uppercase tracking-widest text-neutral-400">
@@ -1127,7 +1124,7 @@ export default function UserDetailPage() {
                                         >
                                             <option value="customer">Customer</option>
                                             <option value="artisan">Artisan</option>
-                                            <option value="agent">Agent</option>
+                                            <option value="verification_agent">Verification Agent</option>
                                             <option value="admin">Admin</option>
                                         </select>
                                         <ChevronDown className="pointer-events-none absolute right-5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
