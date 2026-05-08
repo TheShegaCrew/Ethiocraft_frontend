@@ -3,16 +3,17 @@ import React, { lazy, Suspense } from 'react';
 import ApprovalsPanel from '@/components/ui/ApprovalsPanel';
 import RecentOrders from '@/components/ui/RecentOrders';
 import UsersSnapshot from '@/components/ui/UsersSnapshot';
-import PlatformHealth from '@/components/ui/PlatformHealth';
+import PlatformHealth, { type HealthMetric } from '@/components/ui/PlatformHealth';
 import ActivityFeed from '@/components/ui/ActivityFeed';
 
 const AdminCharts = lazy(() => import('@/components/AdminCharts'));
 
 type Props = {
-  kpiCards?: any[];
-  quickActions?: any[];
+  kpiCards?: { title: string; value: string; subtitle: string }[];
+  quickActions?: { title: string; subtitle: string; icon: React.ComponentType<{ className?: string }>; navigate?: string }[];
   usersSnapshot?: any[];
-  activityFeed?: any[];
+  activityItems?: { id: string; text: string }[];
+  platformHealthMetrics?: HealthMetric[];
   approvalItems?: any[];
   handleApprovalAction?: any;
   rowHeight?: number;
@@ -23,9 +24,31 @@ type Props = {
   orders?: any[];
   baseUrl?: string;
   bearerToken?: string;
+  selectedRange?: string;
+  onSelectedRangeChange?: (range: string) => void;
+  overviewLoading?: boolean;
 };
 
-export default function DashboardSection({ kpiCards = [], quickActions = [], usersSnapshot = [], activityFeed = [], approvalItems = [], handleApprovalAction, rowHeight = 56, containerHeight = 336, setDetailsOrder, setActiveNav, showFeedback, orders = [], baseUrl, bearerToken }: Props) {
+export default function DashboardSection({
+  kpiCards = [],
+  quickActions = [],
+  usersSnapshot = [],
+  activityItems = [],
+  platformHealthMetrics,
+  approvalItems = [],
+  handleApprovalAction,
+  rowHeight = 56,
+  containerHeight = 336,
+  setDetailsOrder,
+  setActiveNav,
+  showFeedback,
+  orders = [],
+  baseUrl,
+  bearerToken,
+  selectedRange = 'Last 30 days',
+  onSelectedRangeChange,
+  overviewLoading = false,
+}: Props) {
   return (
     <main className="space-y-8 px-6 py-8 lg:px-8">
       <section className="flex flex-wrap items-end justify-between gap-4 rounded-3xl border border-[#e8dece] bg-white p-6 shadow-[0_8px_28px_rgba(62,39,35,0.06)]">
@@ -33,20 +56,26 @@ export default function DashboardSection({ kpiCards = [], quickActions = [], use
           <h1 className="text-3xl uppercase tracking-[0.04em]" style={{ fontFamily: '"Druk Wide", "Arial Black", sans-serif' }}>
             Admin Dashboard
           </h1>
-          <p className="mt-2 text-sm text-[#6d645e]">Monitor and manage the marketplace</p>
+          <p className="mt-2 text-sm text-[#6d645e]">
+            Live KPIs use <span className="font-semibold text-[#3E2723]">{selectedRange}</span> where noted · overview API
+          </p>
         </div>
         <div className="flex items-center gap-3" style={{ fontFamily: 'Aeonik, Inter, sans-serif' }}>
           <select
             className="rounded-xl border border-[#e1d7c7] bg-white px-3 py-2 text-sm text-[#5f5750] outline-none"
-            onChange={(e) => showFeedback?.(`Date range changed: ${e.target.value}`)}
+            value={selectedRange}
+            disabled={overviewLoading}
+            onChange={(e) => onSelectedRangeChange?.(e.target.value)}
           >
-            <option>Last 30 days</option>
-            <option>Last 90 days</option>
-            <option>This year</option>
+            <option value="Last 30 days">Last 30 days</option>
+            <option value="Last 90 days">Last 90 days</option>
+            <option value="This year">This year</option>
           </select>
           <button
-            className="rounded-xl border border-[#e1d7c7] px-4 py-2 text-sm transition hover:bg-[#f5f0e7]"
-            onClick={() => showFeedback?.('Export started with placeholder dataset')}
+            type="button"
+            className="rounded-xl border border-[#e1d7c7] px-4 py-2 text-sm transition hover:bg-[#f5f0e7] disabled:opacity-50"
+            disabled={overviewLoading}
+            onClick={() => showFeedback?.('Open Reports to export CSV from generated tables.')}
           >
             Export
           </button>
@@ -63,8 +92,8 @@ export default function DashboardSection({ kpiCards = [], quickActions = [], use
             <p className="text-xs uppercase tracking-[0.08em] text-[#81756b]" style={{ fontFamily: 'Aeonik, Inter, sans-serif' }}>
               {card.title}
             </p>
-            <p className="mt-2 text-3xl font-semibold">{card.value}</p>
-            <p className="mt-2 text-xs text-emerald-700">{card.trend} vs last period</p>
+            <p className="mt-2 text-3xl font-semibold">{overviewLoading ? '…' : card.value}</p>
+            <p className="mt-2 text-xs text-[#6d645e]">{card.subtitle}</p>
             <div className="mt-4 h-8 w-full rounded-lg bg-[linear-gradient(90deg,#f3ead8_0%,#eadab8_45%,#d7c08f_100%)] opacity-60" />
           </article>
         ))}
@@ -77,7 +106,15 @@ export default function DashboardSection({ kpiCards = [], quickActions = [], use
             <button
               key={action.title}
               className="rounded-3xl border border-[#e8dece] bg-white p-5 text-left shadow-[0_6px_20px_rgba(62,39,35,0.04)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_10px_30px_rgba(198,167,94,0.2)]"
-              onClick={() => showFeedback?.(`Placeholder action: ${action.title}`)}
+              type="button"
+              onClick={() => {
+                if (action.navigate && setActiveNav) {
+                  setActiveNav(action.navigate);
+                  showFeedback?.(`Opened ${action.navigate}`);
+                  return;
+                }
+                showFeedback?.(`${action.title}`);
+              }}
             >
               <Icon className="h-5 w-5 text-[#3E2723]" />
               <p className="mt-3 text-sm font-medium" style={{ fontFamily: 'Aeonik, Inter, sans-serif' }}>
@@ -108,8 +145,8 @@ export default function DashboardSection({ kpiCards = [], quickActions = [], use
 
         <aside className="space-y-6 xl:col-span-4">
           <UsersSnapshot usersSnapshot={usersSnapshot} setActiveNav={setActiveNav} showFeedback={showFeedback} />
-          <PlatformHealth />
-          <ActivityFeed activityFeed={activityFeed} />
+          <PlatformHealth metrics={platformHealthMetrics} />
+          <ActivityFeed items={activityItems} />
         </aside>
       </section>
 
