@@ -101,9 +101,9 @@ export default function ProductDraftReviewPage() {
     setLoading(true);
     try {
       const base = (process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, '') || 'http://localhost:4000/api/v1';
-      const token = localStorage.getItem('token');
       const res = await fetch(`${base}/verifications/products/drafts/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
       });
       if (!res.ok) throw new Error(`Error: ${res.status}`);
       const json = await res.json();
@@ -147,9 +147,8 @@ export default function ProductDraftReviewPage() {
   const handleSave = async (silent = false) => {
     if (!draft) return;
     setIsSaving(true);
-    try {
+      try {
       const base = (process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, '') || 'http://localhost:4000/api/v1';
-      const token = localStorage.getItem('token');
 
       const payload = {
         ...formData,
@@ -159,9 +158,9 @@ export default function ProductDraftReviewPage() {
 
       const res = await fetch(`${base}/verifications/products/drafts/${id}`, {
         method: 'PATCH',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
         },
         body: JSON.stringify(payload),
       });
@@ -186,13 +185,12 @@ export default function ProductDraftReviewPage() {
     setIsUpdatingStatus(true);
     try {
       const base = (process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, '') || 'http://localhost:4000/api/v1';
-      const token = localStorage.getItem('token');
 
       const res = await fetch(`${base}/verifications/products/drafts/${id}`, {
         method: 'PATCH',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({ status }),
       });
@@ -216,13 +214,12 @@ export default function ProductDraftReviewPage() {
     setIsUpdatingStatus(true);
     try {
       const base = (process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, '') || 'http://localhost:4000/api/v1';
-      const token = localStorage.getItem('token');
 
       const res = await fetch(`${base}/verifications/products/drafts/${id}/review`, {
         method: 'PATCH',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({ decision, notes }),
       });

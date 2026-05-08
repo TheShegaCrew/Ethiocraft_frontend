@@ -54,9 +54,9 @@ export default function App() {
       setLoading(true);
       try {
         const base = (process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, '') || 'http://localhost:4000/api/v1';
-        const token = localStorage.getItem('token');
         const res = await fetch(`${base}/admin/products/${id}`, {
-          headers: { Authorization: `Bearer ${token}` },
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
         });
         if (!res.ok) throw new Error(`Error: ${res.status}`);
         const json = await res.json();
@@ -126,8 +126,6 @@ export default function App() {
     setIsSaving(true);
     try {
       const base = (process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, '') || 'http://localhost:4000/api/v1';
-      const token = localStorage.getItem('token');
-      
       const payload: any = {
         title: details.title,
         description: details.description,
@@ -151,9 +149,9 @@ export default function App() {
 
       const res = await fetch(`${base}/admin/products/${id}`, {
         method: 'PATCH',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
         },
         body: JSON.stringify(payload),
       });
@@ -234,11 +232,11 @@ export default function App() {
                   setIsVisible(newState);
                   const status = newState ? 'PUBLISHED' : 'APPROVED';
                   const base = (process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, '') || 'http://localhost:4000/api/v1';
-                  const token = localStorage.getItem('token');
                   try {
                     await fetch(`${base}/admin/products/${id}`, {
                       method: 'PATCH',
-                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                      credentials: 'include',
+                      headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ status }),
                     });
                     showToast(newState ? 'Product is now live' : 'Product hidden from marketplace');
@@ -564,11 +562,11 @@ export default function App() {
                 onClick={async () => {
                   setShowDeleteConfirm(false);
                   const base = (process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, '') || 'http://localhost:4000/api/v1';
-                  const token = localStorage.getItem('token');
                   try {
                     await fetch(`${base}/admin/products/${id}`, {
                       method: 'DELETE',
-                      headers: { Authorization: `Bearer ${token}` },
+                      credentials: 'include',
+                      headers: { 'Content-Type': 'application/json' },
                     });
                     showToast('Product archived successfully');
                     setTimeout(() => window.location.href = '/admin/products', 1500);

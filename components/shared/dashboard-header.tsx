@@ -27,20 +27,6 @@ import MegaMenu from "../MegaMenu";
 import HeaderSearchPanel from "@/components/shared/HeaderSearchPanel";
 import { Separator } from "@/components/ui/separator";
 
-/** Returns the dashboard URL for the currently logged-in role. */
-function dashboardForRole(role: string | null): string {
-  switch (role?.toUpperCase()) {
-    case "ADMIN":
-      return "/admin/dashboard";
-    case "AGENT":
-      return "/agent/dashboard";
-    case "ARTISAN":
-      return "/artisan/dashboard";
-    default:
-      return "/customer/dashboard";
-  }
-}
-
 type DashboardHeaderProps = {
   statusText: string;
   notifications?: Array<{
@@ -66,11 +52,11 @@ export function DashboardHeader({
   const closeTweenRef = useRef<gsap.core.Tween | null>(null);
   const isMountedRef = useRef(true);
 
-  const { token, role, logout } = useAuth();
+  const { role, logout } = useAuth();
   const { cartCount } = useCart();
-  const isLoggedIn = Boolean(token);
+  const isLoggedIn = Boolean(role);
   const rolePath = role ? role.toLowerCase() : "customer";
-  const profileHref = token ? `/${rolePath}/profile` : "/auth/login";
+  const profileHref = isLoggedIn ? `/${rolePath}/profile` : "/auth/login";
   const isCustomer = role?.toUpperCase() === 'CUSTOMER';
 
   useEffect(() => {
@@ -257,7 +243,7 @@ export function DashboardHeader({
                       </DropdownMenuItem>
                     </Link>
                     <DropdownMenuSeparator />
-                    {token ? (
+                    {isLoggedIn ? (
                       <DropdownMenuItem
                         className="cursor-pointer text-destructive focus:text-destructive"
                         onClick={logout}
@@ -327,7 +313,7 @@ export function DashboardHeader({
                     Notifications ({unreadNotifications})
                   </div>
 
-                  {token ? (
+                  {isLoggedIn ? (
                     <>
                       <Link
                         href={profileHref}

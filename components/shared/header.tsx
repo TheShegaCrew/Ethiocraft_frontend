@@ -9,18 +9,9 @@ import { useHeader } from '@/lib/header-context'
 import { Separator } from '@/components/ui/separator'
 import { useAuth } from '@/lib/auth-context'
 import { useCart } from '@/lib/cart-context'
+import { dashboardForRole } from '@/lib/permissions'
 import MegaMenu from '../MegaMenu'
 import HeaderSearchPanel from '@/components/shared/HeaderSearchPanel'
-
-/** Returns the dashboard URL for the currently logged-in role. */
-function dashboardForRole(role: string | null): string {
-  switch (role?.toUpperCase()) {
-    case 'ADMIN':   return '/admin/dashboard'
-    case 'AGENT':   return '/agent/dashboard'
-    case 'ARTISAN': return '/artisan/dashboard'
-    default:        return '/customer/dashboard'
-  }
-}
 
 export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -35,9 +26,9 @@ export function Header() {
   const closeTweenRef = useRef<gsap.core.Tween | null>(null)
   const isMountedRef = useRef(true)
   const { setIsHovered: setGlobalIsHovered } = useHeader()
-  const { token, role } = useAuth()
+  const { role } = useAuth()
   const { cartCount } = useCart()
-  const isLoggedIn = Boolean(token)
+  const isLoggedIn = Boolean(role)
 
   useEffect(() => {
     const hero = document.getElementById('hero')

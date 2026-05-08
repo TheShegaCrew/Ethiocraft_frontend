@@ -5,6 +5,7 @@ import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose, DrawerFo
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
 import { X } from 'lucide-react';
+import { apiFetch } from '@/lib/api';
 
 export default function AgentsSection(props: any) {
   const router = useRouter();
@@ -16,11 +17,7 @@ export default function AgentsSection(props: any) {
   useEffect(() => {
     const fetchMetrics = async () => {
       try {
-        const base = (process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, '') || 'http://localhost:4000/api/v1';
-        const token = localStorage.getItem('token') || localStorage.getItem('authToken');
-        const res = await fetch(`${base}/admin/agents/metrics`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const res = await apiFetch('/admin/agents/metrics');
         if (!res.ok) throw new Error('Failed to fetch metrics');
         const json = await res.json();
         const data = json.data;

@@ -151,9 +151,9 @@ export default function App() {
     const fetchAgents = async () => {
       setAgentsLoading(true);
       try {
-        const token = localStorage.getItem('token');
         const res = await fetch('http://localhost:4000/api/v1/admin/users/role/VERIFICATION_AGENT', {
-          headers: { 'Authorization': `Bearer ${token}` }
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
         });
         if (!res.ok) throw new Error('Failed to fetch agents');
         const json = await res.json();
@@ -173,9 +173,9 @@ export default function App() {
     if (!sample.artisanId) return;
     const fetchArtisanSamples = async () => {
       try {
-        const token = localStorage.getItem('token');
         const res = await fetch(`http://localhost:4000/api/v1/admin/products/samples?artisanId=${sample.artisanId}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
         });
         if (!res.ok) throw new Error('Failed to fetch artisan samples');
         const json = await res.json();
@@ -194,10 +194,10 @@ export default function App() {
 
     const fetchSample = async () => {
       try {
-        const token = localStorage.getItem('token');
         const res = await fetch(`http://localhost:4000/api/v1/admin/products/samples/${id}`, {
+          credentials: 'include',
           headers: {
-            'Authorization': `Bearer ${token}`
+            'Content-Type': 'application/json'
           }
         });
         if (!res.ok) throw new Error('Failed to fetch');
@@ -289,11 +289,10 @@ export default function App() {
 
   const updateSampleStatus = async (decision: string, notes?: string) => {
     try {
-      const token = localStorage.getItem('token');
       const res = await fetch(`http://localhost:4000/api/v1/admin/products/samples/${id}/review`, {
         method: 'PATCH',
+        credentials: 'include',
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
@@ -358,11 +357,10 @@ export default function App() {
     const agent = agents.find((item) => item.id === selectedAgentId);
     if (!agent) return showToast('Select an agent to continue');
     try {
-      const token = localStorage.getItem('token');
       const res = await fetch(`http://localhost:4000/api/v1/admin/samples/${id}`, {
         method: 'PATCH',
+        credentials: 'include',
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ assignedVerifierId: agent.id }),

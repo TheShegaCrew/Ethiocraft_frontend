@@ -5,6 +5,7 @@ import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose, DrawerFo
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
 import { X } from 'lucide-react';
+import { apiFetch } from '@/lib/api';
 
 export default function SamplesSection(props: any) {
   const router = useRouter();
@@ -16,12 +17,7 @@ export default function SamplesSection(props: any) {
   useEffect(() => {
     const fetchSamples = async () => {
       try {
-        const token = localStorage.getItem('token');
-        const res = await fetch(`http://localhost:4000/api/v1/admin/products/samples`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
+        const res = await apiFetch('/admin/products/samples');
         if (!res.ok) throw new Error('Failed to fetch');
         const json = await res.json();
         

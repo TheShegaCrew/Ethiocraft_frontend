@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { apiFetch } from '@/lib/api';
 
 /** Utility for tailwind classes */
 function cn(...inputs: ClassValue[]) {
@@ -109,17 +110,13 @@ const App = () => {
       setLoading(true);
       setError('');
       try {
-        const base = (process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, '') || 'http://localhost:4000/api/v1';
-        const token = localStorage.getItem('token') || localStorage.getItem('authToken');
-        const headers: Record<string, string> = {};
-        if (token) headers.Authorization = `Bearer ${token}`;
         const params = new URLSearchParams(getRange());
         const topParams = new URLSearchParams({ ...getRange(), limit: '5' });
 
         const [overviewRes, revenueRes, topRes] = await Promise.all([
-          fetch(`${base}/admin/dashboard/overview?${params.toString()}`, { headers }),
-          fetch(`${base}/admin/dashboard/revenue?${params.toString()}`, { headers }),
-          fetch(`${base}/admin/dashboard/artisans/top?${topParams.toString()}`, { headers }),
+          apiFetch(`/admin/dashboard/overview?${params.toString()}`),
+          apiFetch(`/admin/dashboard/revenue?${params.toString()}`),
+          apiFetch(`/admin/dashboard/artisans/top?${topParams.toString()}`),
         ]);
         if (!overviewRes.ok || !revenueRes.ok || !topRes.ok) throw new Error('Failed to fetch analytics data');
 

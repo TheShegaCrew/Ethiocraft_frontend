@@ -41,6 +41,8 @@ import ApprovalsSection from '@/components/ui/navSections/ApprovalsSection';
 import GenericSection from '@/components/ui/navSections/GenericSection';
 import SamplesSection from '@/components/ui/navSections/SamplesSection';
 import AgentsSection from '@/components/ui/navSections/AgentsSection';
+import { apiFetch } from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
 /* Admin Dashboard Overview
  - This component composes the main admin interface and several panels.
  - Mapping of admin responsibilities to UI areas in this file:
@@ -164,6 +166,7 @@ function statusClass(status: any) {
 export default function App() {
   const router = useRouter();
   const [activeNav, setActiveNav] = useState('Dashboard');
+  const { logout } = useAuth();
 
   const handleNavChange = useCallback((nav: string) => {
     if (nav === 'Analytics') {
@@ -199,12 +202,9 @@ export default function App() {
   useEffect(() => {
     const fetchGlobalOrders = async () => {
       try {
-        const base = (process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, '') || 'http://localhost:4000/api/v1';
-        const token = localStorage.getItem('token');
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (token) headers.Authorization = `Bearer ${token}`;
-
-        const res = await fetch(`${base}/orders`, { headers });
+        const res = await apiFetch('/orders', {
+          headers: { 'Content-Type': 'application/json' },
+        });
         if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
         const json = await res.json();
 
@@ -227,12 +227,9 @@ export default function App() {
 
     const fetchGlobalUsers = async () => {
       try {
-        const base = (process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, '') || 'http://localhost:4000/api/v1';
-        const token = localStorage.getItem('token');
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (token) headers.Authorization = `Bearer ${token}`;
-
-        const res = await fetch(`${base}/admin/users`, { headers });
+        const res = await apiFetch('/admin/users', {
+          headers: { 'Content-Type': 'application/json' },
+        });
         if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
         const json = await res.json();
 
@@ -253,12 +250,9 @@ export default function App() {
 
     const fetchPendingSamples = async () => {
       try {
-        const base = (process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, '') || 'http://localhost:4000/api/v1';
-        const token = localStorage.getItem('token') || localStorage.getItem('authToken');
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (token) headers.Authorization = `Bearer ${token}`;
-
-        const res = await fetch(`${base}/admin/samples/pending?limit=5`, { headers });
+        const res = await apiFetch('/admin/samples/pending?limit=5', {
+          headers: { 'Content-Type': 'application/json' },
+        });
         if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
         const json = await res.json();
 
@@ -322,11 +316,17 @@ export default function App() {
     window.setTimeout(() => setFeedbackMessage(''), 2100);
   };
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('role');
-    localStorage.removeItem('authToken'); // in case auth context is used
-    localStorage.removeItem('authRole');
-    router.push('/auth/admin'); // redirect to admin login page
+    // Use centralized logout to ensure server-side session cleared and redirect happens
+    try {
+      logout()
+    } catch (err) {
+      // Fallback: clear known keys and navigate
+      localStorage.removeItem('token');
+      localStorage.removeItem('role');
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('authRole');
+      router.push('/auth/login');
+    }
   };
 
   const handleProfileMenuClick = (entry: string) => {
