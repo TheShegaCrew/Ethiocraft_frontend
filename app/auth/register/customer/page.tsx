@@ -1,11 +1,14 @@
 "use client";
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Header } from '@/components/shared/header';
 import { Footer } from '@/components/shared/footer';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+
+const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000/api/v1';
 
 const registerSchema = z.object({
   fullName: z.string().min(2, 'Full name is required'),
@@ -20,8 +23,11 @@ const registerSchema = z.object({
 type RegisterFormData = z.infer<typeof registerSchema>;
 
 export default function RegisterPage() {
+  const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const {
     register,
@@ -37,8 +43,38 @@ export default function RegisterPage() {
     },
   });
 
-  const onSubmit = (values: RegisterFormData) => {
-    console.log('Account creation successful:', values);
+  const onSubmit = async (values: RegisterFormData) => {
+    setErrorMessage('');
+    setIsSubmitting(true);
+
+    try {
+      const [firstName, ...rest] = values.fullName.trim().split(/\s+/);
+      const lastName = rest.join(' ') || firstName;
+      const res = await fetch(`${BASE_URL}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          firstName,
+          lastName,
+          email: values.email,
+          password: values.password,
+          role: 'CUSTOMER',
+        }),
+      });
+
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg = json?.message ?? 'Failed to create account.';
+        setErrorMessage(msg);
+        return;
+      }
+
+      router.push(`/auth/verify-otp?email=${encodeURIComponent(values.email)}`);
+    } catch {
+      setErrorMessage('Unable to reach the server. Please check your connection.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -149,11 +185,18 @@ export default function RegisterPage() {
                     {errors.confirmPassword && <p className="font-aeonik mt-1 ml-4 text-xs text-red-600">{errors.confirmPassword.message}</p>}
                   </div>
 
+                  {errorMessage && (
+                    <p role="alert" className="font-aeonik bg-red-50 text-red-600 px-4 py-2 rounded-xl text-sm border border-red-100 mt-4">
+                      {errorMessage}
+                    </p>
+                  )}
+
                   <button
                     type="submit"
-                    className="font-aeonik w-full bg-[#1C1C1C] text-[#FAFAF9] hover:opacity-90 rounded-full px-5 py-3.5 mt-6 text-sm transition-all duration-300 shadow-sm"
+                    disabled={isSubmitting}
+                    className="font-aeonik w-full bg-primary text-primary-foreground hover:bg-primary/90 rounded-full px-5 py-3.5 mt-6 text-sm transition-all duration-300 shadow-sm"
                   >
-                    Create Account
+                    {isSubmitting ? 'Creating account...' : 'Create Account'}
                   </button>
                 </form>
 

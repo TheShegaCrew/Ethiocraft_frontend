@@ -19,7 +19,8 @@ import {
   AlertTriangle,
   Loader2,
   Image as ImageIcon,
-  ExternalLink
+  ExternalLink,
+  Ban
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -57,14 +58,14 @@ export default function VerificationControlCenter() {
     setLoading(true);
     try {
       const base = (process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, '') || 'http://localhost:4000/api/v1';
-      const token = localStorage.getItem('token');
-      
+
       const params = new URLSearchParams();
       if (statusFilter !== 'ALL') params.append('status', statusFilter);
       if (search) params.append('search', search);
 
       const res = await fetch(`${base}/verifications/products/drafts?${params.toString()}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
       });
       
       if (!res.ok) throw new Error('Failed to fetch verification queue');
@@ -131,15 +132,14 @@ export default function VerificationControlCenter() {
   };
 
   const handleApprove = async (id: string) => {
-    try {
+      try {
         const base = (process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, '') || 'http://localhost:4000/api/v1';
-        const token = localStorage.getItem('token');
         
         const res = await fetch(`${base}/verifications/products/drafts/${id}/review`, {
           method: 'PATCH',
+          credentials: 'include',
           headers: { 
               'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}` 
           },
           body: JSON.stringify({ decision: 'APPROVE' })
         });
@@ -161,15 +161,14 @@ export default function VerificationControlCenter() {
       return;
     }
     
-    try {
+      try {
         const base = (process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, '') || 'http://localhost:4000/api/v1';
-        const token = localStorage.getItem('token');
         
         const res = await fetch(`${base}/verifications/products/drafts/${selectedTask.id}/review`, {
           method: 'PATCH',
+          credentials: 'include',
           headers: { 
               'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}` 
           },
           body: JSON.stringify({ decision: 'REJECT', notes: rejectReason })
         });

@@ -65,9 +65,9 @@ export default function ProductEditPage() {
       setLoading(true);
       try {
         const base = (process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, '') || 'http://localhost:4000/api/v1';
-        const token = localStorage.getItem('token');
         const res = await fetch(`${base}/admin/products/${id}`, {
-          headers: { Authorization: `Bearer ${token}` },
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
         });
         if (!res.ok) throw new Error(`Error: ${res.status}`);
         const json = await res.json();
@@ -111,7 +111,6 @@ export default function ProductEditPage() {
     setIsSaving(true);
     try {
       const base = (process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, '') || 'http://localhost:4000/api/v1';
-      const token = localStorage.getItem('token');
       
       const payload = {
         ...formData,
@@ -121,9 +120,9 @@ export default function ProductEditPage() {
 
       const res = await fetch(`${base}/admin/products/${id}`, {
         method: 'PATCH',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
         },
         body: JSON.stringify(payload),
       });
@@ -485,11 +484,11 @@ export default function ProductEditPage() {
                 onClick={async () => {
                   setShowDeleteConfirm(false);
                   const base = (process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, '') || 'http://localhost:4000/api/v1';
-                  const token = localStorage.getItem('token');
                   try {
                     const res = await fetch(`${base}/admin/products/${id}`, {
                       method: 'DELETE',
-                      headers: { Authorization: `Bearer ${token}` },
+                      credentials: 'include',
+                      headers: { 'Content-Type': 'application/json' },
                     });
                     if (!res.ok) throw new Error('Failed to archive');
                     showToast('Product archived successfully');

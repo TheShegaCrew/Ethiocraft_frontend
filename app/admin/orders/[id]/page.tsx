@@ -163,10 +163,9 @@ export default function App() {
       setError(null);
       try {
         const base = (process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, '') || 'http://localhost:4000/api/v1';
-        const token = typeof window !== 'undefined' ? (localStorage.getItem('token') ?? sessionStorage.getItem('token') ?? '') : '';
         const res = await fetch(`${base}/orders/${orderId}`, {
+          credentials: 'include',
           headers: {
-            Authorization: token ? `Bearer ${token}` : '',
             'Content-Type': 'application/json',
           },
         });
@@ -195,15 +194,11 @@ export default function App() {
     try {
       setLoading(true);
       const base = (process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, '') || 'http://localhost:4000/api/v1';
-      const token = typeof window !== 'undefined' ? (localStorage.getItem('token') ?? sessionStorage.getItem('token') ?? '') : '';
 
       const res = await fetch(`${base}/orders/${orderId}/status`, {
         method: 'PATCH',
+        credentials: 'include',
         headers: {
-          Authorization: token ? `Bearer ${token}` : '',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ status: newStatus }),
       });
 
       if (!res.ok) {

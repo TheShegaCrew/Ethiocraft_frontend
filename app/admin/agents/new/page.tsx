@@ -6,6 +6,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { ArrowLeft, UserPlus, Shield, Mail, Phone, Lock, CheckCircle2, AlertCircle } from 'lucide-react';
+import { apiFetch } from '@/lib/api';
 
 const agentSchema = z.object({
   firstName: z.string().min(2, 'First name is required'),
@@ -43,14 +44,10 @@ export default function NewAgentPage() {
     setLoading(true);
     setError(null);
     try {
-      const base = (process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, '') || 'http://localhost:4000/api/v1';
-      const token = localStorage.getItem('token') || localStorage.getItem('authToken');
-      
-      const res = await fetch(`${base}/admin/users`, {
+      const res = await apiFetch('/admin/users', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           ...values,

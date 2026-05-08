@@ -40,6 +40,8 @@ import ApprovalsSection from '@/components/ui/navSections/ApprovalsSection';
 import GenericSection from '@/components/ui/navSections/GenericSection';
 import SamplesSection from '@/components/ui/navSections/SamplesSection';
 import AgentsSection from '@/components/ui/navSections/AgentsSection';
+import { apiFetch } from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
 /* Admin Dashboard Overview
  - This component composes the main admin interface and several panels.
  - Mapping of admin responsibilities to UI areas in this file:
@@ -190,6 +192,7 @@ function timeAgo(iso: string) {
 export default function App() {
   const router = useRouter();
   const [activeNav, setActiveNav] = useState('Dashboard');
+  const { logout } = useAuth();
 
   const handleNavChange = useCallback((nav: string) => {
     if (nav === 'Analytics') {
@@ -549,11 +552,17 @@ export default function App() {
     window.setTimeout(() => setFeedbackMessage(''), 2100);
   };
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('role');
-    localStorage.removeItem('authToken'); // in case auth context is used
-    localStorage.removeItem('authRole');
-    router.push('/auth/admin'); // redirect to admin login page
+    // Use centralized logout to ensure server-side session cleared and redirect happens
+    try {
+      logout()
+    } catch (err) {
+      // Fallback: clear known keys and navigate
+      localStorage.removeItem('token');
+      localStorage.removeItem('role');
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('authRole');
+      router.push('/auth/login');
+    }
   };
 
   const handleProfileMenuClick = (entry: string) => {

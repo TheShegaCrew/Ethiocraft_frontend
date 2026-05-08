@@ -5,7 +5,7 @@ import { ArrowLeft, Loader2, Save } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
-type Role = "customer" | "artisan" | "agent" | "admin";
+type Role = "customer" | "artisan" | "verification_agent" | "admin";
 type Status = "active" | "suspended";
 
 export default function UserEditPage() {
@@ -38,16 +38,16 @@ export default function UserEditPage() {
         const fetchUser = async () => {
             try {
                 const base = (process.env.NEXT_PUBLIC_BASE_URL ?? "").replace(/\/$/, "") || "http://localhost:4000/api/v1";
-                const token = localStorage.getItem("token");
                 const res = await fetch(`${base}/admin/users/${id}`, {
-                    headers: { Authorization: `Bearer ${token}` }
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' }
                 });
                 if (!res.ok) throw new Error("Failed to load user data");
                 const json = await res.json();
                 const data = json.data || json;
 
                 let role = "customer";
-                if (data.role === "VERIFICATION_AGENT") role = "agent";
+                if (data.role === "VERIFICATION_AGENT") role = "verification_agent";
                 else if (data.role === "ARTISAN") role = "artisan";
                 else if (data.role === "ADMIN") role = "admin";
 
@@ -98,10 +98,8 @@ export default function UserEditPage() {
         setError(null);
         try {
             const base = (process.env.NEXT_PUBLIC_BASE_URL ?? "").replace(/\/$/, "") || "http://localhost:4000/api/v1";
-            const token = localStorage.getItem("token");
 
-            let mappedRole = formData.role.toUpperCase();
-            if (mappedRole === "AGENT") mappedRole = "VERIFICATION_AGENT";
+            const mappedRole = formData.role.toUpperCase();
 
             const payload: any = {
                 firstName: formData.firstName,
@@ -118,9 +116,9 @@ export default function UserEditPage() {
 
             const res = await fetch(`${base}/admin/users/${id}`, {
                 method: "PATCH",
+                credentials: 'include',
                 headers: {
                     "Content-Type": "application/json",
-                    Authorization: `Bearer ${token}`
                 },
                 body: JSON.stringify(payload)
             });
@@ -236,7 +234,7 @@ export default function UserEditPage() {
                                 >
                                     <option value="customer">Customer</option>
                                     <option value="artisan">Artisan</option>
-                                    <option value="agent">Verification Agent</option>
+                                    <option value="verification_agent">Verification Agent</option>
                                     <option value="admin">Admin</option>
                                 </select>
                             </div>

@@ -95,10 +95,9 @@ function phaseLabel(phase: SubmitPhase): string {
   }
 }
 
-/** Retrieves the stored auth token. Adjust the key to match your auth setup. */
+/** Client uses cookie-based auth; local token storage removed. */
 function getAuthToken(): string | null {
-  if (typeof window === 'undefined') return null; // Ensure this runs only in the browser
-  return localStorage.getItem('token') ?? sessionStorage.getItem('token');
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -109,12 +108,12 @@ function getAuthToken(): string | null {
  * Step 1 — Create a product draft with JSON data.
  * POST /artisan/products/samples
  */
-async function createProductSamples(payload: Record<string, unknown>, token: string): Promise<string> {
+async function createProductSamples(payload: Record<string, unknown>): Promise<string> {
   const res = await fetch(`${BaseUrl}/artisan/products/samples`, {
     method: 'POST',
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify(payload),
   });
@@ -145,17 +144,14 @@ async function createProductSamples(payload: Record<string, unknown>, token: str
  * NOTE: Do NOT set Content-Type manually; the browser sets it automatically
  *       with the correct boundary when using FormData.
  */
-async function uploadSampleImages(sampleId: string, files: File[], token: string): Promise<void> {
+async function uploadSampleImages(sampleId: string, files: File[]): Promise<void> {
   const formData = new FormData();
   files.forEach((file) => formData.append('images', file));
 
   const res = await fetch(`${BaseUrl}/artisan/products/samples/${sampleId}/images`, {
     method: 'POST',
-    headers: {
-      // ⚠️ Content-Type is intentionally omitted so the browser can set the
-      //    multipart/form-data boundary automatically.
-      Authorization: `Bearer ${token}`,
-    },
+    credentials: 'include',
+    // Note: do not set Content-Type here so the browser attaches the boundary
     body: formData,
   });
 
@@ -312,12 +308,7 @@ export default function App() {
 
     setErrors([]);
 
-    // 2. Retrieve auth token
-    const token = getAuthToken();
-    if (!token) {
-      setErrors(['You are not authenticated. Please sign in and try again.']);
-      return;
-    }
+    // 2. Cookie-based auth is used; server will validate via cookie on API calls.
 
     try {
       // ── Step 1: Create draft (JSON) ────────────────────────────────────────
@@ -334,7 +325,7 @@ export default function App() {
 
       };
 
-      const draftId = await createProductSamples(draftPayload, token);
+      const draftId = await createProductSamples(draftPayload);
 
       // ── Step 2: Upload images (FormData) ────────────────────────────────────
       setSubmitPhase('uploading-images');
@@ -346,7 +337,7 @@ export default function App() {
       ].slice(0, 6); // enforce the API's 6-image cap
 
       if (imagesToUpload.length > 0) {
-        await uploadSampleImages(draftId, imagesToUpload, token);
+        await uploadSampleImages(draftId, imagesToUpload);
       }
 
       // ── Step 3: Finalize — do NOT auto-submit for verification (admin action)
