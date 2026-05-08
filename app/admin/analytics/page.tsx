@@ -162,6 +162,30 @@ const App = () => {
     `Top artisan revenue leader: ${topArtisans[0]?.revenue?.toLocaleString?.() || 0} ETB`,
   ];
 
+  const exportAnalyticsCsv = () => {
+    const lines: string[] = [];
+    lines.push('section,key,value');
+    lines.push(`kpi,total_revenue_etb,${Math.round(totalRevenue)}`);
+    lines.push(`kpi,total_orders,${totalOrders}`);
+    lines.push(`kpi,total_users,${totalUsers}`);
+    lines.push(`kpi,conversion_pct,${conversion.toFixed(2)}`);
+    lines.push(`kpi,avg_order_value_etb,${Math.round(avgOrderValue)}`);
+    chartByDay.forEach((d) => lines.push(`revenue_by_day,${d.name},${d.revenue}`));
+    roleData.forEach((d) => lines.push(`users_by_role,${d.name},${d.value}`));
+    topArtisans.forEach((a) => {
+      const fullName = `${a.artisan?.firstName || ''} ${a.artisan?.lastName || ''}`.trim();
+      const name = a.artisan?.artisanProfile?.shopName || fullName || 'Unknown artisan';
+      lines.push(`top_artisan,${name.replace(/,/g, ' ')},${Math.round(a.revenue || 0)}`);
+    });
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `admin-analytics-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="min-h-screen bg-[#FAFAF9] text-[#1C1C1C] font-sans selection:bg-[#C6A75E] selection:text-white">
       <main className="flex-1 p-6 lg:p-10 overflow-x-hidden">
@@ -182,7 +206,7 @@ const App = () => {
                 </button>
               ))}
             </div>
-            <button className="bg-white border border-[#E5E5E5] rounded-xl px-4 py-2 text-xs font-semibold shadow-sm hover:bg-neutral-50 transition-colors flex items-center gap-2">
+            <button onClick={exportAnalyticsCsv} className="bg-white border border-[#E5E5E5] rounded-xl px-4 py-2 text-xs font-semibold shadow-sm hover:bg-neutral-50 transition-colors flex items-center gap-2">
               <Download size={14} /> Export
             </button>
           </div>

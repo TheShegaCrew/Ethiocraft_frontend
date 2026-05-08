@@ -31,7 +31,6 @@ import ApprovalsPanel from '@/components/ui/ApprovalsPanel';
 import RecentOrders from '@/components/ui/RecentOrders';
 import UsersSnapshot from '@/components/ui/UsersSnapshot';
 import PlatformHealth from '@/components/ui/PlatformHealth';
-import ActivityFeed from '@/components/ui/ActivityFeed';
 import DashboardSection from '@/components/ui/navSections/DashboardSection';
 import UsersSection from '@/components/ui/navSections/UsersSection';
 import ArtisansSection from '@/components/ui/navSections/ArtisansSection';
@@ -69,19 +68,12 @@ type ApprovalItem = {
   priority: 'high' | 'medium';
 };
 
-type Order = {
-  id: string;
-  customer: string;
-  amount: string;
-  status: 'Completed' | 'Processing' | 'Shipped';
-  date: string;
-};
-
 type NotificationItem = {
   id: string;
   title: string;
   time: string;
   read: boolean;
+  notificationId: string;
 };
 
 const navigation: NavItem[] = [
@@ -99,68 +91,102 @@ const navigation: NavItem[] = [
   { label: 'Settings', icon: Settings },
 ];
 
-const kpiCards = [
-  { title: 'Total Users', value: '12,480', trend: '+12.4%' },
-  { title: 'Revenue', value: '$245,900', trend: '+18.1%' },
-  { title: 'Orders', value: '1,842', trend: '+6.9%' },
-  { title: 'Pending Approvals', value: '27', trend: '-8.0%' },
-  { title: 'Active Artisans', value: '403', trend: '+9.7%' },
-  { title: 'Conversion Rate', value: '4.2%', trend: '+0.8%' },
-];
-// KPI cards: sample metrics shown on the dashboard.
-// In production these should be backed by real analytics / reporting APIs.
-
 const initialApprovalItems: ApprovalItem[] = [];
 // Sample pending approvals used to populate the 'Pending Approvals' panel.
 // Replace with a real approval queue fetched from the server; wire approve/reject actions.
 
-const initialNotifications: NotificationItem[] = [
-  { id: 'N-1', title: '9 artisan applications waiting for review', time: '5m ago', read: false },
-  { id: 'N-2', title: 'Order ORD-4190 was marked shipped', time: '18m ago', read: false },
-  { id: 'N-3', title: '1 product report needs moderation', time: '1h ago', read: true },
-  { id: 'N-4', title: 'Weekly marketplace snapshot is ready', time: '3h ago', read: true },
-];
-// Notification sample data. In production, pull notifications from server and support actions.
+const initialNotifications: NotificationItem[] = [];
 
-const quickActions = [
-  { title: 'Approve Artisans', subtitle: '9 applications waiting', icon: ShieldCheck },
-  { title: 'Review Products', subtitle: '11 listings pending', icon: Package },
-  { title: 'Manage Orders', subtitle: '32 in processing', icon: ShoppingCart },
-  { title: 'Handle Reports', subtitle: '4 flagged incidents', icon: AlertCircle },
-];
-// Quick action cards: dashboard shortcuts shown on the main page.
-// They are visual shortcuts and currently trigger placeholder handlers.
+type AdminProfile = {
+  id: string;
+  firstName?: string;
+  lastName?: string;
+  role?: string;
+};
 
-const usersSnapshot = [
-  { name: 'Meklit Abebe', role: 'Artisan' },
-  { name: 'Samuel Bekele', role: 'Customer' },
-  { name: 'Rahel Tsegaye', role: 'Agent' },
-  { name: 'Dawit Kebede', role: 'Artisan' },
-];
-// Users snapshot: temporary demo data for quick glance. Replace with server data.
+function roleLabel(role: string) {
+  const m: Record<string, string> = {
+    CUSTOMER: 'Customer',
+    ARTISAN: 'Artisan',
+    ADMIN: 'Admin',
+    VERIFICATION_AGENT: 'Agent',
+  };
+  return m[role] || role || '—';
+}
 
-const activityFeed = [
-  'New artisan registered: Taitu Pottery House',
-  'Order #ORD-4124 completed',
-  'Product flagged for review: Filigree Ring Set',
-  'Verification approved: Hanan Textile Studio',
-];
+function sumRows(rows: { count?: number }[]) {
+  return rows.reduce((s, r) => s + (Number(r.count) || 0), 0);
+}
 
-const baseOrders: Order[] = [
-  { id: 'ORD-4102', customer: 'Marta T.', amount: '$189.00', status: 'Completed', date: 'Dec 12' },
-  { id: 'ORD-4103', customer: 'Helen A.', amount: '$78.00', status: 'Processing', date: 'Dec 12' },
-  { id: 'ORD-4104', customer: 'Yonas B.', amount: '$246.00', status: 'Shipped', date: 'Dec 11' },
-  { id: 'ORD-4105', customer: 'Ruth S.', amount: '$112.00', status: 'Processing', date: 'Dec 11' },
-  { id: 'ORD-4106', customer: 'Nati G.', amount: '$91.00', status: 'Completed', date: 'Dec 10' },
-  { id: 'ORD-4107', customer: 'Semhal D.', amount: '$165.00', status: 'Shipped', date: 'Dec 10' },
-];
+function rowByKey(rows: { key: string; count?: number }[], key: string) {
+  return rows.find((r) => r.key === key)?.count ?? 0;
+}
 
-function statusClass(status: any) {
-  if (!status) return 'bg-sky-50 text-sky-700';
-  const s = String(status).toLowerCase();
-  if (/paid|success|complete|deliv|fulfilled/.test(s)) return 'bg-emerald-50 text-emerald-700';
-  if (/process|pending|waiting/.test(s)) return 'bg-amber-50 text-amber-700';
-  return 'bg-sky-50 text-sky-700';
+function draftPipelineTotal(drafts: { key: string; count?: number }[]) {
+  const keys = new Set(['ADMIN_CREATED', 'AGENT_IN_PROGRESS', 'AGENT_VERIFIED', 'ADMIN_REVIEW']);
+  return drafts.filter((d) => keys.has(d.key)).reduce((s, d) => s + (Number(d.count) || 0), 0);
+}
+
+function ordersFulfillmentInFlight(orders: { key: string; count?: number }[]) {
+  const keys = new Set(['PAID', 'PROCESSING', 'SHIPPED']);
+  return orders.filter((d) => keys.has(d.key)).reduce((s, d) => s + (Number(d.count) || 0), 0);
+}
+
+function pct(part: number, whole: number) {
+  if (!whole) return 0;
+  return Math.min(100, Math.round((part / whole) * 100));
+}
+
+function pctChangeLabel(cur: number, prev: number) {
+  if (prev === 0) return cur === 0 ? 'Flat vs prior window' : 'No prior window baseline';
+  const ch = ((cur - prev) / prev) * 100;
+  const sign = ch >= 0 ? '+' : '';
+  return `${sign}${ch.toFixed(1)}% vs prior window`;
+}
+
+function getDashboardRange(label: string): { from: Date; to: Date } {
+  const to = new Date();
+  const from = new Date(to);
+  if (label === 'Last 30 days') {
+    from.setDate(to.getDate() - 30);
+  } else if (label === 'Last 90 days') {
+    from.setDate(to.getDate() - 90);
+  } else if (label === 'This year') {
+    from.setMonth(0, 1);
+    from.setHours(0, 0, 0, 0);
+  } else {
+    from.setDate(to.getDate() - 30);
+  }
+  return { from, to };
+}
+
+function previousRange(from: Date, to: Date): { from: Date; to: Date } {
+  const ms = to.getTime() - from.getTime();
+  const prevTo = new Date(from.getTime());
+  const prevFrom = new Date(from.getTime() - ms);
+  return { from: prevFrom, to: prevTo };
+}
+
+function getApiBase() {
+  return (process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, '') || 'http://localhost:4000/api/v1';
+}
+
+function getAuthHeaders() {
+  const token = localStorage.getItem('token') || localStorage.getItem('authToken');
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
+}
+
+function timeAgo(iso: string) {
+  const now = new Date();
+  const date = new Date(iso);
+  const diffMinutes = Math.max(0, Math.floor((now.getTime() - date.getTime()) / (1000 * 60)));
+  if (diffMinutes < 1) return 'Just now';
+  if (diffMinutes < 60) return `${diffMinutes}m ago`;
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  return `${Math.floor(diffHours / 24)}d ago`;
 }
 
 export default function App() {
@@ -199,46 +225,36 @@ export default function App() {
   const [approvalItems, setApprovalItems] = useState<ApprovalItem[]>(initialApprovalItems);
   const [notifications, setNotifications] = useState<NotificationItem[]>(initialNotifications);
 
+  const [overview, setOverview] = useState<Record<string, any> | null>(null);
+  const [overviewPrev, setOverviewPrev] = useState<Record<string, any> | null>(null);
+  const [overviewLoading, setOverviewLoading] = useState(true);
+  const [activityItems, setActivityItems] = useState<{ id: string; text: string }[]>([]);
+  const [adminProfile, setAdminProfile] = useState<AdminProfile | null>(null);
+
   useEffect(() => {
-    const fetchGlobalOrders = async () => {
+    const base = getApiBase();
+    const headers = getAuthHeaders();
+
+    const fetchAdminOrders = async () => {
       try {
-        const res = await apiFetch('/orders', {
-          headers: { 'Content-Type': 'application/json' },
-        });
+        const res = await fetch(`${base}/admin/orders?page=1&limit=40`, { headers });
         if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
         const json = await res.json();
-
-        let items: any[] = [];
-        if (Array.isArray(json?.data?.items)) items = json.data.items;
-        else if (Array.isArray(json)) items = json;
-        else if (Array.isArray(json?.items)) items = json.items;
-        else if (Array.isArray(json?.data)) items = json.data;
-        else if (json && typeof json === 'object') {
-          items = Object.values(json).flat().filter(Boolean);
-        }
+        const items = Array.isArray(json?.data?.items) ? json.data.items : [];
         setGlobalOrders(items);
       } catch (err) {
-        console.error('Failed to fetch global orders', err);
+        console.error('Failed to fetch admin orders', err);
       } finally {
         setOrdersLoading(false);
       }
     };
-    fetchGlobalOrders();
 
     const fetchGlobalUsers = async () => {
       try {
-        const res = await apiFetch('/admin/users', {
-          headers: { 'Content-Type': 'application/json' },
-        });
+        const res = await fetch(`${base}/admin/users?page=1&limit=50`, { headers });
         if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
         const json = await res.json();
-
-        let items: any[] = [];
-        if (json.data && Array.isArray(json.data.items)) items = json.data.items;
-        else if (Array.isArray(json)) items = json;
-        else if (json.data && Array.isArray(json.data)) items = json.data;
-        else if (json.users && Array.isArray(json.users)) items = json.users;
-
+        const items = json?.data?.items && Array.isArray(json.data.items) ? json.data.items : [];
         setGlobalUsers(items);
       } catch (err) {
         console.error('Failed to fetch global users', err);
@@ -246,16 +262,12 @@ export default function App() {
         setUsersLoading(false);
       }
     };
-    fetchGlobalUsers();
 
     const fetchPendingSamples = async () => {
       try {
-        const res = await apiFetch('/admin/samples/pending?limit=5', {
-          headers: { 'Content-Type': 'application/json' },
-        });
+        const res = await fetch(`${base}/admin/samples/pending?limit=5`, { headers });
         if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
         const json = await res.json();
-
         const samples = json.data?.items || [];
         const mapped: ApprovalItem[] = samples.map((s: any) => {
           const createdAt = new Date(s.createdAt);
@@ -265,16 +277,15 @@ export default function App() {
           if (diffInHours > 0 && diffInHours < 24) dateStr = `${diffInHours}h ago`;
           else if (diffInHours >= 24) dateStr = `${Math.floor(diffInHours / 24)}d ago`;
           else if (diffInHours === 0) {
-              const diffInMins = Math.floor((now.getTime() - createdAt.getTime()) / (1000 * 60));
-              if (diffInMins > 0) dateStr = `${diffInMins}m ago`;
+            const diffInMins = Math.floor((now.getTime() - createdAt.getTime()) / (1000 * 60));
+            if (diffInMins > 0) dateStr = `${diffInMins}m ago`;
           }
-
           return {
             id: s.id,
-            type: 'Verification',
+            type: 'Verification' as const,
             name: s.title,
             date: dateStr,
-            priority: diffInHours > 48 ? 'high' : 'medium',
+            priority: diffInHours > 48 ? ('high' as const) : ('medium' as const),
           };
         });
         setApprovalItems(mapped);
@@ -282,34 +293,259 @@ export default function App() {
         console.error('Failed to fetch pending samples', err);
       }
     };
+
+    const fetchNotifications = async () => {
+      try {
+        const res = await fetch(`${base}/notifications/me`, { headers });
+        if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+        const json = await res.json();
+        const items = Array.isArray(json?.data) ? json.data : [];
+        setNotifications(
+          items.slice(0, 12).map((n: any) => ({
+            id: String(n.id),
+            notificationId: String(n.id),
+            title: n.title || n.message || 'Notification',
+            time: n.createdAt ? timeAgo(n.createdAt) : 'Just now',
+            read: Boolean(n.isRead),
+          })),
+        );
+      } catch (err) {
+        console.error('Failed to fetch notifications', err);
+      }
+    };
+
+    const fetchProfile = async () => {
+      try {
+        const res = await fetch(`${base}/users/me`, { headers });
+        if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+        const json = await res.json();
+        setAdminProfile(json?.data || null);
+      } catch (err) {
+        console.error('Failed to fetch admin profile', err);
+      }
+    };
+
+    fetchAdminOrders();
+    fetchGlobalUsers();
     fetchPendingSamples();
+    fetchNotifications();
+    fetchProfile();
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const base = getApiBase();
+    const token = localStorage.getItem('token') || localStorage.getItem('authToken');
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    (async () => {
+      setOverviewLoading(true);
+      try {
+        const { from, to } = getDashboardRange(selectedRange);
+        const { from: pf, to: pt } = previousRange(from, to);
+        const params = new URLSearchParams({ dateFrom: from.toISOString(), dateTo: to.toISOString() });
+        const prevParams = new URLSearchParams({ dateFrom: pf.toISOString(), dateTo: pt.toISOString() });
+
+        const [ovRes, ovPrevRes, auditRes] = await Promise.all([
+          fetch(`${base}/admin/dashboard/overview?${params}`, { headers }),
+          fetch(`${base}/admin/dashboard/overview?${prevParams}`, { headers }),
+          fetch(`${base}/admin/audit-logs?page=1&limit=10`, { headers }),
+        ]);
+
+        if (cancelled) return;
+
+        if (ovRes.ok) {
+          const j = await ovRes.json();
+          setOverview(j.data ?? null);
+        } else setOverview(null);
+
+        if (ovPrevRes.ok) {
+          const j = await ovPrevRes.json();
+          setOverviewPrev(j.data ?? null);
+        } else setOverviewPrev(null);
+
+        if (auditRes.ok) {
+          const j = await auditRes.json();
+          const items = j.data?.items || [];
+          setActivityItems(
+            items.map((a: any) => ({
+              id: String(a.id),
+              text: `${a.description}${a.actor ? ` · ${[a.actor.firstName, a.actor.lastName].filter(Boolean).join(' ')}`.trim() : ''} · ${new Date(a.createdAt).toLocaleString()}`,
+            })),
+          );
+        } else setActivityItems([]);
+      } catch (e) {
+        console.error('Dashboard overview fetch failed', e);
+        if (!cancelled) {
+          setOverview(null);
+          setOverviewPrev(null);
+        }
+      } finally {
+        if (!cancelled) setOverviewLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedRange]);
 
   const rowHeight = 56;
   const containerHeight = 336;
 
   const unreadNotifications = notifications.filter((item) => !item.read).length;
 
+  const usersSnapshotComputed = useMemo(
+    () =>
+      globalUsers.slice(0, 4).map((u: any) => ({
+        id: u.id,
+        name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email || 'User',
+        role: roleLabel(u.role),
+      })),
+    [globalUsers],
+  );
+
+  const kpiCards = useMemo(() => {
+    const loadingCard = (title: string) => ({ title, value: '—', subtitle: overviewLoading ? 'Loading…' : 'No data' });
+    if (!overview || overviewLoading) {
+      return [
+        loadingCard('Total Users'),
+        loadingCard('Revenue (ETB)'),
+        loadingCard('Orders (period)'),
+        loadingCard('Pending pipeline'),
+        loadingCard('Active Artisans'),
+        loadingCard('Paid / orders'),
+      ];
+    }
+    const c = overview.counts || {};
+    const rev = Number(overview.revenue?.amount || 0);
+    const revPrev = Number(overviewPrev?.revenue?.amount ?? 0);
+    const ordersRows = overview.orders || [];
+    const ordersPrevRows = overviewPrev?.orders || [];
+    const ordersTotal = sumRows(ordersRows);
+    const ordersPrevTotal = sumRows(ordersPrevRows);
+    const payments = Number(overview.revenue?.successfulPayments || 0);
+    const paymentsPrev = Number(overviewPrev?.revenue?.successfulPayments ?? 0);
+    const pendingDrafts = draftPipelineTotal(overview.drafts || []);
+    const pendingApprovals = Number(c.pendingSamples || 0) + pendingDrafts;
+    const conversion = ordersTotal > 0 ? (payments / ordersTotal) * 100 : 0;
+    const conversionPrev = ordersPrevTotal > 0 ? (paymentsPrev / ordersPrevTotal) * 100 : 0;
+
+    return [
+      { title: 'Total Users', value: Number(c.totalUsers || 0).toLocaleString(), subtitle: 'All roles · live count' },
+      {
+        title: 'Revenue (ETB)',
+        value: `ETB ${rev.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+        subtitle: pctChangeLabel(rev, revPrev),
+      },
+      {
+        title: 'Orders (period)',
+        value: ordersTotal.toLocaleString(),
+        subtitle: pctChangeLabel(ordersTotal, ordersPrevTotal),
+      },
+      {
+        title: 'Pending pipeline',
+        value: pendingApprovals.toLocaleString(),
+        subtitle: 'Submitted samples + drafts in workflow',
+      },
+      {
+        title: 'Active Artisans',
+        value: Number(c.activeArtisans || 0).toLocaleString(),
+        subtitle: 'Accounts ACTIVE with ARTISAN role',
+      },
+      {
+        title: 'Paid / orders',
+        value: `${conversion.toFixed(1)}%`,
+        subtitle: pctChangeLabel(conversion, conversionPrev),
+      },
+    ];
+  }, [overview, overviewPrev, overviewLoading]);
+
+  const quickActionsDashboard = useMemo(() => {
+    if (!overview) {
+      return [
+        { title: 'Review samples', subtitle: 'Open approvals', icon: ShieldCheck, navigate: 'Approvals' },
+        { title: 'Review products', subtitle: 'Draft pipeline', icon: Package, navigate: 'Products' },
+        { title: 'Manage orders', subtitle: 'Fulfillment', icon: ShoppingCart, navigate: 'Orders' },
+        { title: 'Reports', subtitle: 'Exports & presets', icon: AlertCircle, navigate: 'Reports' },
+      ];
+    }
+    const c = overview.counts || {};
+    const drafts = draftPipelineTotal(overview.drafts || []);
+    const inFlight = ordersFulfillmentInFlight(overview.orders || []);
+    const jobs = overview.aiUsage?.reportJobs ?? 0;
+    return [
+      {
+        title: 'Review samples',
+        subtitle: `${c.pendingSamples ?? 0} submitted sample(s)`,
+        icon: ShieldCheck,
+        navigate: 'Approvals',
+      },
+      { title: 'Review products', subtitle: `${drafts} draft(s) in pipeline`, icon: Package, navigate: 'Products' },
+      {
+        title: 'Manage orders',
+        subtitle: `${inFlight} order(s) paid → shipped`,
+        icon: ShoppingCart,
+        navigate: 'Orders',
+      },
+      {
+        title: 'Reports',
+        subtitle: `${jobs} AI report job(s) in selected range`,
+        icon: AlertCircle,
+        navigate: 'Reports',
+      },
+    ];
+  }, [overview]);
+
+  const platformHealthMetrics = useMemo(() => {
+    if (!overview) return [];
+    const products = overview.products || [];
+    const totalP = sumRows(products);
+    const published = rowByKey(products, 'PUBLISHED');
+    const ordersRows = overview.orders || [];
+    const delivered = rowByKey(ordersRows, 'DELIVERED');
+    const nonCancelled = sumRows(ordersRows.filter((o: { key: string }) => o.key !== 'CANCELLED'));
+    const usersByRole = overview.users || [];
+    const artisans = rowByKey(usersByRole, 'ARTISAN');
+    const tu = Number(overview.counts?.totalUsers || 1);
+
+    return [
+      {
+        label: 'Catalog published',
+        value: pct(published, totalP),
+        hint: `${published} / ${totalP || 0} products`,
+      },
+      {
+        label: 'Delivered (period)',
+        value: pct(delivered, nonCancelled),
+        hint: `${delivered} of ${nonCancelled} orders`,
+      },
+      {
+        label: 'Artisan share of users',
+        value: pct(artisans, tu),
+        hint: `${artisans} artisans`,
+      },
+    ];
+  }, [overview]);
+
   const quickActionCommands = [
-    { label: 'Add Product', note: 'Create a placeholder listing draft' },
-    { label: 'Verify Artisan', note: 'Open artisan verification queue' },
-    { label: 'Export Orders', note: 'Prepare a CSV export job' },
+    { label: 'Add Product', note: 'Open product management workspace' },
+    { label: 'Verify Artisan', note: 'Review pending verification samples' },
+    { label: 'Export Orders', note: 'Open report center with order filters' },
   ];
-  // Quick action commands: these drive the '+ Quick Actions' popover.
-  // Currently they are UI stubs that show an ephemeral feedback message.
-  // Replace handlers in `runQuickAction` with real API-driven behavior.
 
   const searchResults = useMemo(() => {
     const source = [
       ...navigation.map((item) => ({ type: 'Section', name: item.label })),
       ...globalOrders.slice(0, 8).map((order) => ({ type: 'Order', name: order.id })),
-      ...usersSnapshot.map((user) => ({ type: 'User', name: user.name })),
+      ...usersSnapshotComputed.map((user) => ({ type: 'User', name: user.name })),
     ];
 
     if (!searchQuery.trim()) return [];
     const needle = searchQuery.toLowerCase();
     return source.filter((entry) => entry.name.toLowerCase().includes(needle)).slice(0, 6);
-  }, [searchQuery]);
+  }, [searchQuery, globalOrders, usersSnapshotComputed]);
 
   const showFeedback = (message: string) => {
     setFeedbackMessage(message);
@@ -333,8 +569,16 @@ export default function App() {
     setProfileMenuOpen(false);
     if (entry === 'Sign out') {
       handleLogout();
-    } else {
-      showFeedback(`Placeholder action: ${entry}`);
+      return;
+    }
+
+    if (entry === 'Profile') {
+      if (adminProfile?.id) router.push(`/admin/users/${adminProfile.id}`);
+      return;
+    }
+
+    if (entry === 'Preferences') {
+      router.push('/admin/setting');
     }
   };
   const handleApprovalAction = (id: string, action: 'approve' | 'reject') => {
@@ -343,17 +587,19 @@ export default function App() {
   };
 
   const runQuickAction = (label: string) => {
-    // NOTE: quick actions currently perform local navigation / feedback only.
-    // Replace with backend calls to perform real admin tasks (create product draft,
-    // enqueue verification, start export jobs, etc.) and show progress status.
     if (label === 'Verify Artisan') {
-      setActiveNav('Approvals');
+      handleNavChange('Approvals');
+      showFeedback('Opened approvals queue');
     }
     if (label === 'Add Product') {
-      setActiveNav('Products');
+      handleNavChange('Products');
+      showFeedback('Opened products workspace');
+    }
+    if (label === 'Export Orders') {
+      router.push('/admin/report');
+      showFeedback('Opened report center');
     }
     setQuickActionsOpen(false);
-    showFeedback(`Placeholder action executed: ${label}`);
   };
 
   const sectionDescriptions: Record<string, string> = {
@@ -501,13 +747,17 @@ export default function App() {
               >
                 <div className="relative">
                   <div className="h-10 w-10 overflow-hidden rounded-2xl border-2 border-[#e8dece] bg-[#d6c6b3] transition-all group-hover:border-[#C6A75E] shadow-sm">
-                    <div className="h-full w-full bg-gradient-to-br from-[#d6c6b3] to-[#b0a497] flex items-center justify-center text-white font-bold">A</div>
+                    <div className="h-full w-full bg-gradient-to-br from-[#d6c6b3] to-[#b0a497] flex items-center justify-center text-white font-bold">
+                      {`${adminProfile?.firstName?.[0] || ''}${adminProfile?.lastName?.[0] || ''}`.trim() || 'A'}
+                    </div>
                   </div>
                   <div className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full border-2 border-white bg-emerald-500 shadow-sm" />
                 </div>
                 <div className="hidden text-left md:block">
-                  <p className="text-xs font-black uppercase tracking-wider text-[#3E2723]">Admin</p>
-                  <p className="text-[10px] font-bold text-[#83786f]">System Ops</p>
+                  <p className="text-xs font-black uppercase tracking-wider text-[#3E2723]">
+                    {`${adminProfile?.firstName || ''} ${adminProfile?.lastName || ''}`.trim() || 'Admin'}
+                  </p>
+                  <p className="text-[10px] font-bold text-[#83786f]">{roleLabel(adminProfile?.role || 'ADMIN')}</p>
                 </div>
               </button>
             </div>
@@ -540,6 +790,10 @@ export default function App() {
                   <button
                     className="text-xs text-[#7d7268] underline underline-offset-2"
                     onClick={() => {
+                      const headers = getAuthHeaders();
+                      notifications.filter((n) => !n.read).forEach((n) => {
+                        fetch(`${getApiBase()}/notifications/${n.notificationId}/read`, { method: 'PATCH', headers }).catch(() => null);
+                      });
                       setNotifications((current) => current.map((item) => ({ ...item, read: true })));
                       showFeedback('All notifications marked as read');
                     }}
@@ -553,10 +807,12 @@ export default function App() {
                       key={item.id}
                       className="w-full rounded-xl px-3 py-2 text-left transition hover:bg-[#f8f2e7]"
                       onClick={() => {
+                        const headers = getAuthHeaders();
+                        fetch(`${getApiBase()}/notifications/${item.notificationId}/read`, { method: 'PATCH', headers }).catch(() => null);
                         setNotifications((current) =>
                           current.map((entry) => (entry.id === item.id ? { ...entry, read: true } : entry)),
                         );
-                        showFeedback(`Opened notification: ${item.title}`);
+                        showFeedback(item.title);
                       }}
                     >
                       <p className={`text-sm ${item.read ? 'text-[#73685f]' : 'font-medium text-[#302521]'}`}>{item.title}</p>
@@ -616,14 +872,18 @@ export default function App() {
           return (
             <ActiveSection
               activeNav={activeNav}
-              setActiveNav={setActiveNav}
+              setActiveNav={handleNavChange}
               showFeedback={showFeedback}
               sectionDescriptions={sectionDescriptions}
               placeholderRows={placeholderRows}
               kpiCards={kpiCards}
-              quickActions={quickActions}
-              usersSnapshot={usersSnapshot}
-              activityFeed={activityFeed}
+              quickActions={quickActionsDashboard}
+              usersSnapshot={usersSnapshotComputed}
+              activityItems={activityItems}
+              platformHealthMetrics={platformHealthMetrics}
+              selectedRange={selectedRange}
+              onSelectedRangeChange={setSelectedRange}
+              overviewLoading={overviewLoading}
               approvalItems={approvalItems}
               handleApprovalAction={handleApprovalAction}
               rowHeight={rowHeight}
@@ -632,6 +892,12 @@ export default function App() {
               ordersLoading={ordersLoading}
               users={globalUsers}
               usersLoading={usersLoading}
+              baseUrl={getApiBase()}
+              bearerToken={
+                typeof window !== 'undefined'
+                  ? localStorage.getItem('token') || localStorage.getItem('authToken') || ''
+                  : ''
+              }
             />
           );
         })()}
