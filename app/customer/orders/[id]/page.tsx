@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { Header } from "@/components/shared/header";
+import { DashboardHeader } from "@/components/shared/dashboard-header";
 import { Footer } from "@/components/shared/footer";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -75,6 +75,11 @@ export default function CustomerOrderDetailPage() {
   const [tracking, setTracking] = useState<ApiOrderTracking | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const notifications = [
+    { id: "1", message: "Order updates are now synced in real-time.", time: "Just now", unread: true },
+    { id: "2", message: "Your shipment is in transit.", time: "1 hour ago", unread: true },
+    { id: "3", message: "Payment was confirmed successfully.", time: "1 day ago", unread: false },
+  ];
 
   useEffect(() => {
     const loadOrderDetail = async () => {
@@ -123,12 +128,17 @@ export default function CustomerOrderDetailPage() {
       return bTime - aTime;
     });
   }, [tracking]);
+  const unreadNotifications = notifications.filter((note) => note.unread).length;
 
   return (
     <div className="min-h-screen bg-background flex flex-col font-inter">
-      <Header />
+      <DashboardHeader
+        statusText="Order tracking updates active"
+        notifications={notifications}
+        unreadNotifications={unreadNotifications}
+      />
       <main className="flex-1">
-        <div className="container mx-auto px-4 pt-32 pb-12">
+        <div className="container mx-auto px-4 pt-28 md:pt-32 pb-12">
           <div className="mb-6">
             <Link href="/customer/dashboard" className="text-sm text-muted-foreground hover:text-foreground">
               ← Back to Dashboard

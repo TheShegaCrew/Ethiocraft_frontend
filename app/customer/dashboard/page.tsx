@@ -1,7 +1,7 @@
 'use client'
 
-import { Header } from '@/components/shared/header'
 import { Footer } from '@/components/shared/footer'
+import { DashboardHeader } from '@/components/shared/dashboard-header'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -125,6 +125,12 @@ export default function CustomerDashboard() {
     },
   ]
   const [wishlistIds, setWishlistIds] = useState<(string | number)[]>([])
+  const notifications = [
+    { id: '1', message: 'Order #EC-1024 has been shipped.', time: '15 mins ago', unread: true },
+    { id: '2', message: 'Your refund request for #EC-1011 is being reviewed.', time: '3 hours ago', unread: true },
+    { id: '3', message: 'Your wishlist item "Woven Mesob Basket" is back in stock.', time: '1 day ago', unread: false },
+  ]
+  const unreadNotifications = notifications.filter((note) => note.unread).length
 
   useEffect(() => {
     setWishlistIds(getWishlistProductIds(wishlistUserKey))
@@ -173,10 +179,12 @@ export default function CustomerDashboard() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col font-inter">
-      <Header />
+      <DashboardHeader
+        notifications={notifications}
+        unreadNotifications={unreadNotifications} statusText={''}      />
 
       <main className="flex-1">
-        <div className="container mx-auto px-4 pt-32 pb-12">
+        <div className="container mx-auto px-4 pt-28 md:pt-32 pb-12">
           {/* Welcome Section */}
           <div className="mb-8">
             <h1 className="font-druk-medium text-3xl md:text-4xl uppercase tracking-tight mb-2">Welcome back</h1>
