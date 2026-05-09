@@ -22,7 +22,7 @@ type SectionKey =
     | "appearance";
 
 type PermissionAction = "view" | "edit" | "delete" | "approve" | "assign";
-type RoleName = "customer" | "artisan" | "agent" | "admin";
+type RoleName = "customer" | "artisan" | "VERIFICATION_AGENT" | "admin";
 
 type SettingsState = {
     general: {
@@ -156,10 +156,7 @@ const initialSettings: SettingsState = {
 const API_BASE = (process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:4000/api/v1").replace(/\/$/, "");
 
 function getAuthHeaders() {
-    const token = typeof window !== "undefined" ? localStorage.getItem("token") || localStorage.getItem("authToken") : "";
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (token) headers.Authorization = `Bearer ${token}`;
-    return headers;
+    return { "Content-Type": "application/json" };
 }
 
 const navGroups: { label: string; items: { key: SectionKey; label: string }[] }[] = [
@@ -525,7 +522,7 @@ export default function App() {
                     }
                 >
                     <div className="flex flex-wrap items-center gap-2">
-                        {(["customer", "artisan", "agent", "admin"] as RoleName[]).map((roleName) => (
+                        {(["customer", "artisan", "VERIFICATION_AGENT", "admin"] as RoleName[]).map((roleName) => (
                             <button
                                 key={roleName}
                                 onClick={() => setSettings((prev) => ({ ...prev, rolesPermissions: { ...prev.rolesPermissions, selectedRole: roleName } }))}
