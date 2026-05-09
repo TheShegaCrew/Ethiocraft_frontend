@@ -845,7 +845,7 @@ function ProductPageContent() {
               />
               
               {/* Sidebar */}
-              <aside className="fixed right-0 top-0 z-50 h-full w-[320px] overflow-y-auto border-l border-[#e8e0d1] bg-[#FAFAF9] px-6 py-8 transition-transform duration-[400ms] translate-x-0">
+              <aside className="fixed right-0 top-0 z-50 h-full w-[320px] overflow-y-auto border-l border-[#e8e0d1] bg-[#FAFAF9] px-6 py-8 transition-transform duration-500 translate-x-0">
                 <div className="mb-8 flex items-center justify-between">
                   <p
                     className="text-sm uppercase tracking-[0.12em]"

@@ -625,7 +625,7 @@ export default function App() {
            style={{ background: 'radial-gradient(circle at 50% 50%, #fdfbf7 0%, #FAFAF9 100%)' }} />
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 border-r border-[#e8e0d2]/60 bg-gradient-to-b from-[#fdfbf7] to-[#f5f0e6] px-4 py-6 transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] ${
+        className={`fixed inset-y-0 left-0 z-40 border-r border-[#e8e0d2]/60 bg-gradient-to-b from-[#fdfbf7] to-[#f5f0e6] px-4 py-6 transition-all duration-500 ease-in-out ${
           collapsed ? 'lg:w-20' : 'lg:w-72'
         } w-72 ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} shadow-2xl lg:shadow-none`}
       >
@@ -669,7 +669,7 @@ export default function App() {
         />
       )}
 
-      <div className={`transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] ${collapsed ? 'lg:ml-20' : 'lg:ml-72'}`}>
+      <div className={`transition-all duration-500 ease-in-out ${collapsed ? 'lg:ml-20' : 'lg:ml-72'}`}>
         <header className="sticky top-0 z-30 border-b border-[#ece3d5]/40 bg-white/70 backdrop-blur-xl transition-all duration-300">
           <div className="relative flex items-center gap-6 px-6 py-4 lg:px-10">
             <button
