@@ -172,10 +172,7 @@ function getApiBase() {
 }
 
 function getAuthHeaders() {
-  const token = localStorage.getItem('token') || localStorage.getItem('authToken');
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (token) headers.Authorization = `Bearer ${token}`;
-  return headers;
+  return { 'Content-Type': 'application/json' };
 }
 
 function timeAgo(iso: string) {
@@ -335,9 +332,7 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
     const base = getApiBase();
-    const token = localStorage.getItem('token') || localStorage.getItem('authToken');
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (token) headers.Authorization = `Bearer ${token}`;
 
     (async () => {
       setOverviewLoading(true);
@@ -556,11 +551,7 @@ export default function App() {
     try {
       logout()
     } catch (err) {
-      // Fallback: clear known keys and navigate
-      localStorage.removeItem('token');
-      localStorage.removeItem('role');
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('authRole');
+      // Fallback: navigate
       router.push('/auth/login');
     }
   };
@@ -893,11 +884,7 @@ export default function App() {
               users={globalUsers}
               usersLoading={usersLoading}
               baseUrl={getApiBase()}
-              bearerToken={
-                typeof window !== 'undefined'
-                  ? localStorage.getItem('token') || localStorage.getItem('authToken') || ''
-                  : ''
-              }
+              bearerToken=""
             />
           );
         })()}
