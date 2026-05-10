@@ -23,6 +23,8 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'react-toastify'
+import { useAuth } from '@/lib/auth-context'
+import { useNotifications } from '@/hooks/useNotifications'
 
 
 export default function AgentDashboard() {
@@ -65,12 +67,15 @@ export default function AgentDashboard() {
     { id: 'SHP-003', order: 'ORD-003', customer: 'Mohammed Taye', status: 'Delivered', destination: 'Mekelle', date: 'Dec 12, 2024' },
   ]
 
-  const notifications = [
-    { id: 1, type: 'assignment', message: 'New Verification Task: Authenticate 5 Pottery items in Hawassa.', time: '10 mins ago', unread: true },
-    { id: 2, type: 'alert', message: 'Shipment SHP-002 is delayed. Action required.', time: '1 hour ago', unread: true },
-    { id: 3, type: 'system', message: 'Your weekly performance report is ready.', time: '1 day ago', unread: false },
-  ]
-  const unreadNotifications = notifications.filter((note) => note.unread).length
+  const { token, role } = useAuth()
+  const { notifications, unreadCount: unreadNotifications, markAsRead, markAllAsRead, refresh } = useNotifications({ enabled: Boolean(token || role) })
+
+  const headerNotifications = notifications.map((n) => ({
+    id: n.id,
+    message: n.message,
+    time: new Date(n.createdAt).toLocaleDateString(),
+    unread: !n.isRead,
+  }))
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -152,13 +157,11 @@ export default function AgentDashboard() {
     <div className="min-h-screen bg-background flex flex-col font-inter">
       <DashboardHeader
         statusText="Real-time sync active"
-        notifications={notifications.map((note) => ({
-          id: note.id,
-          message: note.message,
-          time: note.time,
-          unread: note.unread,
-        }))}
+        notifications={headerNotifications}
         unreadNotifications={unreadNotifications}
+        markAsRead={markAsRead}
+        markAllAsRead={markAllAsRead}
+        refresh={refresh}
       />
 
       <main className="flex-1 pt-28 md:pt-32">

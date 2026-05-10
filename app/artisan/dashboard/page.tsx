@@ -23,6 +23,8 @@ import {
   XCircle
 } from 'lucide-react'
 import Link from 'next/link'
+import { useAuth } from '@/lib/auth-context'
+import { useNotifications } from '@/hooks/useNotifications'
 
 export default function ArtisanDashboard() {
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false)
@@ -134,37 +136,15 @@ export default function ArtisanDashboard() {
     { id: 'SMP-103', name: 'Beaded Necklace', date: 'Dec 15, 2024', status: 'Pending Review', notes: 'Review in progress for product photography assets.' },
   ]
 
-  const notifications = [
-    {
-      id: '1',
-      type: 'approval',
-      message: 'Your sample "Leather Messenger Bag" has been approved and is now live in your shop.',
-      time: '2 hours ago',
-      unread: true,
-    },
-    {
-      id: '2',
-      type: 'order',
-      message: 'New order received for "Traditional Habesha Dress" - Order #ORD-001',
-      time: '5 hours ago',
-      unread: true,
-    },
-    {
-      id: '3',
-      type: 'system',
-      message: 'Your payout for December has been processed. Check your bank account.',
-      time: '1 day ago',
-      unread: false,
-    },
-    {
-      id: '4',
-      type: 'rejection',
-      message: 'Sample "Ceramic Vase" was rejected. Please review feedback and resubmit.',
-      time: '2 days ago',
-      unread: false,
-    },
-  ]
-  const unreadNotifications = notifications.filter((note) => note.unread).length
+  const { token, role } = useAuth()
+  const { notifications, unreadCount: unreadNotifications, markAsRead, markAllAsRead, refresh } = useNotifications({ enabled: Boolean(token || role) })
+  
+  const headerNotifications = notifications.map(n => ({
+    id: n.id,
+    message: n.message,
+    time: new Date(n.createdAt).toLocaleDateString(),
+    unread: !n.isRead
+  }))
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -187,13 +167,11 @@ export default function ArtisanDashboard() {
     <div className="min-h-screen bg-background flex flex-col font-inter">
       <DashboardHeader
         statusText="Real-time socket connected"
-        notifications={notifications.map((note) => ({
-          id: note.id,
-          message: note.message,
-          time: note.time,
-          unread: note.unread,
-        }))}
+        notifications={headerNotifications}
         unreadNotifications={unreadNotifications}
+        markAsRead={markAsRead}
+        markAllAsRead={markAllAsRead}
+        refresh={refresh}
       />
 
       <main className="flex-1 pt-28 md:pt-32">

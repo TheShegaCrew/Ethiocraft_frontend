@@ -1,32 +1,29 @@
 "use client";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { MessagePanelModal } from "@/components/admin/MessagePanelModal";
 import {
     AlertTriangle,
     BadgeCheck,
-    Ban,
     ChevronDown,
     ChevronRight,
     CreditCard,
-            try {
-                setRoleDetailsLoading(true);
-                const base = (process.env.NEXT_PUBLIC_BASE_URL ?? "").replace(/\/$/, "") || "http://localhost:4000/api/v1";
-                const search = encodeURIComponent(userData?.email || `${userData?.firstName || ""} ${userData?.lastName || ""}`.trim());
-                const res = await fetch(`${base}/admin/users/role/ARTISAN?search=${search}&page=1&limit=10`, {
-                    credentials: 'include',
-                    headers: { 'Content-Type': 'application/json' },
-                });
-                if (!res.ok) throw new Error(`Error: ${res.status}`);
-                const json = await res.json();
-                const fetched = (json?.data?.items || []).find((item: any) => item.id === userData.id);
-                if (fetched?.artisanProfile) {
-                    setUserData((prev: any) => ({ ...prev, artisanProfile: fetched.artisanProfile }));
-                }
-            } catch (err) {
-                console.error("Failed to hydrate artisan role details:", err);
-            } finally {
-                setRoleDetailsLoading(false);
-            }
+    History,
+    Lock,
+    Pencil,
+    ShieldAlert,
+    ShoppingBag,
+    UserCheck,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+
+type Role = "customer" | "artisan" | "verification_agent" | "admin";
+type Status = "active" | "suspended";
+type TabKey = "activity" | "orders" | "notes" | "tasks";
+
+type Note = {
+    id: number;
+    text: string;
     author: string;
     createdAt: string;
 };
@@ -139,10 +136,10 @@ export default function UserDetailPage() {
     const [ordersPage, setOrdersPage] = useState(1);
     const [roleDetailsLoading, setRoleDetailsLoading] = useState(false);
 
-    // Agent Tasks states
     const [assignMode, setAssignMode] = useState(false);
     const [agentTasks, setAgentTasks] = useState<any[]>([]);
     const [unassignedSamples, setUnassignedSamples] = useState<any[]>([]);
+    const [showMessageModal, setShowMessageModal] = useState(false);
 
     const [notes, setNotes] = useState<Note[]>([
         {
@@ -246,25 +243,24 @@ export default function UserDetailPage() {
             name: "Loading...",
             email: "...",
             phone: "...",
-                try {
-                setRoleDetailsLoading(true);
-                const base = (process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, '') || 'http://localhost:4000/api/v1';
-                const search = encodeURIComponent(userData?.email || `${userData?.firstName || ""} ${userData?.lastName || ""}`.trim());
-                const res = await fetch(`${base}/admin/users/role/ARTISAN?search=${search}&page=1&limit=10`, {
-                    credentials: 'include',
-                    headers: { 'Content-Type': 'application/json' },
-                });
-                if (!res.ok) throw new Error(`Error: ${res.status}`);
-                const json = await res.json();
-                const fetched = (json?.data?.items || []).find((item: any) => item.id === userData.id);
-                if (fetched?.artisanProfile) {
-                    setUserData((prev: any) => ({ ...prev, artisanProfile: fetched.artisanProfile }));
-                }
-            } catch (err) {
-                console.error("Failed to hydrate artisan role details:", err);
-            } finally {
-                setRoleDetailsLoading(false);
-            }
+            avatar: "",
+            id: id,
+            joined: "...",
+            lastActive: "...",
+        };
+        return {
+            name: `${userData.firstName || ""} ${userData.lastName || ""}`.trim() || "Unknown",
+            email: userData.email || "—",
+            phone: userData.phone || "—",
+            avatar: userData.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent((userData.firstName || "") + " " + (userData.lastName || ""))}&background=C6A75E&color=fff`,
+            id: userData.id,
+            joined: userData.createdAt ? new Date(userData.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "2-digit" }) : "—",
+            lastActive: userData.updatedAt ? new Date(userData.updatedAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "2-digit" }) : "—",
+        };
+    }, [userData, id]);
+
+    const roleDetails = useMemo(() => {
+        const profile = userData?.artisanProfile || {};
         const extensionData = profile?.extensionData || {};
         const productStats = extensionData?.productStats || {};
         const sampleStats = extensionData?.sampleStats || {};
@@ -584,7 +580,7 @@ export default function UserDetailPage() {
                                     <button
                                         onClick={() => {
                                             pushLog("Admin action: Message Customer.");
-                                            showToast("Message panel opened");
+                                            setShowMessageModal(true);
                                         }}
                                         className="rounded-lg border border-neutral-200 px-4 py-2 transition hover:bg-neutral-50"
                                     >
@@ -674,7 +670,7 @@ export default function UserDetailPage() {
                                             className="rounded-lg border border-neutral-200 px-4 py-2"
                                             onClick={() => {
                                                 pushLog("Admin action: Message Artisan.");
-                                                showToast("Message artisan opened");
+                                                setShowMessageModal(true);
                                             }}
                                         >
                                             Message Artisan
@@ -1244,6 +1240,13 @@ export default function UserDetailPage() {
                     </div>
                 </div>
             )}
+
+            <MessagePanelModal
+                open={showMessageModal}
+                onOpenChange={setShowMessageModal}
+                userId={id}
+                userName={user?.name}
+            />
         </main>
     );
 }

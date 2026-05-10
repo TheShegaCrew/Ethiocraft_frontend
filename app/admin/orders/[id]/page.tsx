@@ -199,6 +199,9 @@ export default function App() {
         method: 'PATCH',
         credentials: 'include',
         headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: newStatus }),
       });
 
       if (!res.ok) {
