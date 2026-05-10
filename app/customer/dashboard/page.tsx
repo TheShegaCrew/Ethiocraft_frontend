@@ -14,9 +14,10 @@ import { useCart } from '@/lib/cart-context'
 import { getWishlistProductIds, toggleWishlistProduct } from '@/lib/wishlist'
 import { fetchOrders, ApiOrder } from '@/lib/api'
 import { toast } from 'react-toastify'
+import { useNotifications } from '@/hooks/useNotifications'
 
 export default function CustomerDashboard() {
-  const { token } = useAuth()
+  const { token, role } = useAuth()
   const { addItem } = useCart()
   const wishlistUserKey = token ?? 'guest'
   const [orders, setOrders] = useState<ApiOrder[]>([])
@@ -125,12 +126,14 @@ export default function CustomerDashboard() {
     },
   ]
   const [wishlistIds, setWishlistIds] = useState<(string | number)[]>([])
-  const notifications = [
-    { id: '1', message: 'Order #EC-1024 has been shipped.', time: '15 mins ago', unread: true },
-    { id: '2', message: 'Your refund request for #EC-1011 is being reviewed.', time: '3 hours ago', unread: true },
-    { id: '3', message: 'Your wishlist item "Woven Mesob Basket" is back in stock.', time: '1 day ago', unread: false },
-  ]
-  const unreadNotifications = notifications.filter((note) => note.unread).length
+  const { notifications, unreadCount: unreadNotifications, markAsRead, markAllAsRead, refresh } = useNotifications({ enabled: Boolean(token || role) })
+
+  const headerNotifications = notifications.map(n => ({
+    id: n.id,
+    message: n.message,
+    time: new Date(n.createdAt).toLocaleDateString(),
+    unread: !n.isRead
+  }))
 
   useEffect(() => {
     setWishlistIds(getWishlistProductIds(wishlistUserKey))
@@ -180,8 +183,13 @@ export default function CustomerDashboard() {
   return (
     <div className="min-h-screen bg-background flex flex-col font-inter">
       <DashboardHeader
-        notifications={notifications}
-        unreadNotifications={unreadNotifications} statusText={''}      />
+        notifications={headerNotifications}
+        unreadNotifications={unreadNotifications}
+        statusText={''}
+        markAsRead={markAsRead}
+        markAllAsRead={markAllAsRead}
+        refresh={refresh}
+      />
 
       <main className="flex-1">
         <div className="container mx-auto px-4 pt-28 md:pt-32 pb-12">

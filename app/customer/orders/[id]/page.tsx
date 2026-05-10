@@ -16,6 +16,7 @@ import {
   type ApiOrderTracking,
   type ApiOrderTrackingEvent,
 } from "@/lib/api";
+import { useNotifications } from "@/hooks/useNotifications";
 
 function formatDateTime(date?: string | null): string {
   if (!date) return "Not available";
@@ -69,17 +70,20 @@ function formatAddress(order: ApiOrder): string {
 export default function CustomerOrderDetailPage() {
   const params = useParams<{ id: string }>();
   const orderId = params?.id;
-  const { token } = useAuth();
+  const { token, role } = useAuth();
 
   const [order, setOrder] = useState<ApiOrder | null>(null);
   const [tracking, setTracking] = useState<ApiOrderTracking | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const notifications = [
-    { id: "1", message: "Order updates are now synced in real-time.", time: "Just now", unread: true },
-    { id: "2", message: "Your shipment is in transit.", time: "1 hour ago", unread: true },
-    { id: "3", message: "Payment was confirmed successfully.", time: "1 day ago", unread: false },
-  ];
+  
+  const { notifications, unreadCount: unreadNotifications, markAsRead, markAllAsRead, refresh } = useNotifications({ enabled: Boolean(token || role) });
+  const headerNotifications = notifications.map((n) => ({
+    id: n.id,
+    message: n.message,
+    time: new Date(n.createdAt).toLocaleDateString(),
+    unread: !n.isRead,
+  }));
 
   useEffect(() => {
     const loadOrderDetail = async () => {
@@ -128,14 +132,16 @@ export default function CustomerOrderDetailPage() {
       return bTime - aTime;
     });
   }, [tracking]);
-  const unreadNotifications = notifications.filter((note) => note.unread).length;
 
   return (
     <div className="min-h-screen bg-background flex flex-col font-inter">
       <DashboardHeader
         statusText="Order tracking updates active"
-        notifications={notifications}
+        notifications={headerNotifications}
         unreadNotifications={unreadNotifications}
+        markAsRead={markAsRead}
+        markAllAsRead={markAllAsRead}
+        refresh={refresh}
       />
       <main className="flex-1">
         <div className="container mx-auto px-4 pt-28 md:pt-32 pb-12">

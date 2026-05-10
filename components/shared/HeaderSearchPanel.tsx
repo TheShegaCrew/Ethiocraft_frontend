@@ -2,7 +2,7 @@
 
 import type { RefObject } from "react";
 import { useCallback } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import ProductSearchAutocomplete from "@/components/products/ProductSearchAutocomplete";
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
@@ -23,10 +23,11 @@ export default function HeaderSearchPanel({
 }: HeaderSearchPanelProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
+  // Avoid using `useSearchParams()` here to prevent SSR prerender issues —
+  // read from `window.location` on the client instead.
+  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
 
-  const committedQuery =
-    pathname === "/products" ? (searchParams.get("q") ?? "").trim() : "";
+  const committedQuery = pathname === "/products" ? (searchParams.get("q") ?? "").trim() : "";
 
   const applySearch = useCallback(
     (raw: string) => {
@@ -46,7 +47,7 @@ export default function HeaderSearchPanel({
       router.push(`/products?q=${encodeURIComponent(q)}`);
       onClose();
     },
-    [pathname, router, searchParams, onClose],
+    [pathname, router, onClose],
   );
 
   return (

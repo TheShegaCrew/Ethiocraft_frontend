@@ -7,6 +7,8 @@ import {
   Download,
   ImagePlus,
 } from 'lucide-react';
+import { ReverifyModal } from '@/components/admin/ReverifyModal';
+import { MessagePanelModal } from '@/components/admin/MessagePanelModal';
 
 type PageEntity = 'samples' | 'products' | 'orders' | 'artisans';
 type Status = 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED' | 'NEEDS_MORE_MEDIA' | 'SUBMITTED';
@@ -145,6 +147,8 @@ export default function App() {
     'Admin opened review panel - 2026-04-17 10:12',
   ]);
   const [artisanSamples, setArtisanSamples] = useState<any[]>([]);
+  const [showReverifyModal, setShowReverifyModal] = useState(false);
+  const [showMessageModal, setShowMessageModal] = useState(false);
 
   // Fetch real verification agents from the backend
   useEffect(() => {
@@ -590,7 +594,7 @@ export default function App() {
                     </select>
                     <div className="mt-3 flex gap-2 text-xs" style={{ fontFamily: 'Aeonik, Inter, sans-serif' }}>
                       <button onClick={assignAgent} disabled={status !== 'APPROVED'} className="rounded-xl border border-neutral-200 px-3 py-2 disabled:opacity-50">{assignedAgent ? 'Reassign Agent' : 'Assign Agent'}</button>
-                      <button onClick={() => showToast('Re-verification request submitted')} className="rounded-xl border border-neutral-200 px-3 py-2">Request Re-verification</button>
+                      <button onClick={() => setShowReverifyModal(true)} className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-amber-700">Request Re-verification</button>
                     </div>
                     {status !== 'APPROVED' && <p className="mt-2 text-xs text-amber-700">Agent assignment is available after sample approval.</p>}
                   </div>
@@ -629,7 +633,7 @@ export default function App() {
               <span className="mt-2 inline-block rounded-full bg-emerald-50 px-2 py-1 text-xs text-emerald-700">Artisan Verified</span>
               <div className="mt-3 flex flex-wrap gap-2 text-xs" style={{ fontFamily: 'Aeonik, Inter, sans-serif' }}>
                 <button className="rounded-lg border border-neutral-200 px-3 py-1.5 transition hover:bg-neutral-50" onClick={() => navigate(`/admin/users/${sample.artisanId}`)}>View Artisan Profile</button>
-                <button className="rounded-lg border border-neutral-200 px-3 py-1.5 transition hover:bg-neutral-50" onClick={() => showToast('Message composer opened')}>Message Artisan</button>
+                <button className="rounded-lg border border-neutral-200 px-3 py-1.5 transition hover:bg-neutral-50" onClick={() => setShowMessageModal(true)}>Message Artisan</button>
                 <div className="relative">
                   <button
                     className="rounded-lg border border-neutral-200 px-3 py-1.5 transition hover:bg-neutral-50"
@@ -764,6 +768,24 @@ export default function App() {
       )}
 
       {toast && <div className="fixed bottom-5 right-5 z-50 rounded-xl border border-neutral-200 bg-white px-4 py-2 text-sm shadow-md">{toast}</div>}
+
+      <ReverifyModal
+        open={showReverifyModal}
+        onOpenChange={setShowReverifyModal}
+        sampleId={sample.id}
+        sampleTitle={sample.title}
+        onSuccess={() => {
+          setStatus('NEEDS_MORE_MEDIA');
+          addActivity('Admin requested re-verification');
+        }}
+      />
+
+      <MessagePanelModal
+        open={showMessageModal}
+        onOpenChange={setShowMessageModal}
+        userId={sample.artisanId}
+        userName={sample.artisan}
+      />
     </div>
   );
 }
