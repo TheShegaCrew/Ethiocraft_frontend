@@ -537,3 +537,75 @@ export async function adminReverifySample(sampleId: string, payload: { message: 
   const json = await res.json();
   return json.data;
 }
+
+// ─── Cart API ───────────────────────────────────────────────────────────────
+
+export type ApiCartItem = {
+  id: string;
+  productId: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+  product: ApiProductSummary;
+};
+
+export type ApiCartResponse = {
+  items: ApiCartItem[];
+  summary: {
+    itemCount: number;
+    subtotal: number;
+    currency: string;
+  };
+};
+
+export async function fetchCartItems(): Promise<ApiCartResponse> {
+  const res = await apiFetch("/cart", { cache: "no-store" });
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "");
+    throw new Error(`Failed to fetch cart: ${res.status} - ${errText}`);
+  }
+  const json = await res.json();
+  return json.data as ApiCartResponse;
+}
+
+export async function addToCartApi(productId: string, quantity: number = 1): Promise<void> {
+  const res = await apiFetch("/cart", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ productId, quantity }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.message || `Failed to add to cart: ${res.status}`);
+  }
+}
+
+export async function updateCartItemApi(productId: string, quantity: number): Promise<void> {
+  const res = await apiFetch(`/cart/${productId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ quantity }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.message || `Failed to update cart item: ${res.status}`);
+  }
+}
+
+export async function removeFromCartApi(productId: string): Promise<void> {
+  const res = await apiFetch(`/cart/${productId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to remove cart item: ${res.status}`);
+  }
+}
+
+export async function clearCartApi(): Promise<void> {
+  const res = await apiFetch("/cart", {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to clear cart: ${res.status}`);
+  }
+}
