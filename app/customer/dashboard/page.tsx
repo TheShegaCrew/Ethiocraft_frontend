@@ -24,6 +24,7 @@ import {
 } from '@/lib/api'
 import { toast } from 'react-toastify'
 import { useNotifications } from '@/hooks/useNotifications'
+import { Skeleton } from '@/components/ui/skeleton'
 
 // ─── blank address form ──────────────────────────────────────────────────────
 const BLANK_ADDRESS: AddressPayload = {
@@ -54,7 +55,7 @@ export default function CustomerDashboard() {
         setTotalOrders(recent.meta.total)
         setInTransitCount(shipped.meta.total)
       })
-      .catch((e) => { setOrdersError(e.message); setOrders([]) })
+      .catch((e) => { setOrdersError(e.message); setOrders([]); toast.error(e.message || 'Failed to load orders') })
       .finally(() => setOrdersLoading(false))
   }, [])
 
@@ -81,7 +82,7 @@ export default function CustomerDashboard() {
   useEffect(() => {
     fetchUserProfile()
       .then(setProfile)
-      .catch(() => {})
+      .catch((e: any) => { toast.error(e?.message || 'Failed to load profile') })
       .finally(() => setProfileLoading(false))
   }, [])
 
@@ -125,7 +126,7 @@ export default function CustomerDashboard() {
   const loadAddresses = () => {
     fetchUserAddresses()
       .then(setAddresses)
-      .catch(() => {})
+      .catch((e: any) => { toast.error(e?.message || 'Failed to load addresses') })
       .finally(() => setAddressesLoading(false))
   }
 
@@ -180,24 +181,42 @@ export default function CustomerDashboard() {
 
   // ── Wishlist ─────────────────────────────────────────────────────────────────
   const [wishlistProducts, setWishlistProducts] = useState<ApiProductSummary[]>([])
+  const [wishlistLoading, setWishlistLoading] = useState<boolean>(false)
 
   useEffect(() => {
     let mounted = true
     async function load() {
-      if (!wishlistIds?.length) { if (mounted) setWishlistProducts([]); return }
+      setWishlistLoading(true)
+      if (!wishlistIds?.length) { if (mounted) setWishlistProducts([]); setWishlistLoading(false); return }
       const results: ApiProductSummary[] = []
+      let failed = 0
       for (const id of wishlistIds) {
-        try { results.push(await fetchProductById(String(id))) } catch {}
+        try { results.push(await fetchProductById(String(id))) } catch (err) { failed += 1 }
       }
       if (mounted) setWishlistProducts(results)
+      if (failed > 0) toast.error(`${failed} wishlist item(s) failed to load`)
+      setWishlistLoading(false)
     }
     load()
     return () => { mounted = false }
   }, [wishlistIds])
 
   const handleRemoveWishlist = (id: string | number, name?: string) => {
+    const removed = wishlistProducts.find((x) => String(x.id) === String(id))
     setWishlistProducts((p) => p.filter((x) => String(x.id) !== String(id)))
-    try { toggleWishlist(id) } catch {}
+    try {
+      const res = toggleWishlist(id as string | number) as any
+      if (res?.whenDone) {
+        res.whenDone.catch(() => {
+          // restore removed item if API fails and it's not already present
+          setWishlistProducts((cur) => {
+            if (!removed) return cur
+            if (cur.find((x) => String(x.id) === String(removed.id))) return cur
+            return [removed, ...cur]
+          })
+        })
+      }
+    } catch (e) { console.warn('toggleWishlist error', e) }
     if (name) toast.info(`${name} removed from wishlist`)
   }
 
@@ -302,7 +321,14 @@ export default function CustomerDashboard() {
               </div>
               <div className="space-y-3">
                 {ordersLoading ? (
-                  <Card className="p-4"><p className="text-sm text-muted-foreground">Loading your recent orders...</p></Card>
+                  <div className="grid gap-3">
+                    {[1,2,3].map(i => (
+                      <Card key={i} className="p-4" aria-hidden>
+                        <Skeleton className="h-4 w-3/4 mb-2" />
+                        <Skeleton className="h-3 w-1/2" />
+                      </Card>
+                    ))}
+                  </div>
                 ) : ordersError ? (
                   <Card className="p-4 border-red-200 bg-red-50"><p className="text-sm text-red-700">{ordersError}</p></Card>
                 ) : orders.length === 0 ? (
@@ -334,7 +360,17 @@ export default function CustomerDashboard() {
             {/* Wishlist Tab */}
             <TabsContent value="wishlist" className="space-y-4">
               <h2 className="text-xl font-semibold mb-4">Your Wishlist</h2>
-              {wishlistProducts.length === 0 ? (
+              {wishlistLoading ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {[1,2].map(i => (
+                    <Card key={i} className="p-4" aria-hidden>
+                      <Skeleton className="h-24 rounded mb-2" />
+                      <Skeleton className="h-4 w-1/2 mb-1" />
+                      <Skeleton className="h-4 w-1/4" />
+                    </Card>
+                  ))}
+                </div>
+              ) : wishlistProducts.length === 0 ? (
                 <Card className="p-8 text-center">
                   <p className="text-muted-foreground">No wishlist items yet.</p>
                   <Link href="/products"><Button className="mt-4">Browse Products</Button></Link>
@@ -397,7 +433,14 @@ export default function CustomerDashboard() {
                   </Button>
                 </div>
                 {addressesLoading ? (
-                  <p className="text-sm text-muted-foreground">Loading addresses...</p>
+                  <div className="space-y-3">
+                    {[1,2].map(i => (
+                      <Card key={i} className="p-4" aria-hidden>
+                        <Skeleton className="h-4 w-1/3 mb-2" />
+                        <Skeleton className="h-3 w-1/2" />
+                      </Card>
+                    ))}
+                  </div>
                 ) : addresses.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No addresses saved yet.</p>
                 ) : (

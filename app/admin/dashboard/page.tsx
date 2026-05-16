@@ -389,7 +389,7 @@ export default function App() {
   );
 
   const kpiCards = useMemo(() => {
-    const loadingCard = (title: string) => ({ title, value: '—', subtitle: overviewLoading ? 'Loading…' : 'No data' });
+    const loadingCard = (title: string) => ({ title, value: '—', subtitle: overviewLoading ? 'Loading' : 'No data' });
     if (!overview || overviewLoading) {
       return [
         loadingCard('Total Users'),

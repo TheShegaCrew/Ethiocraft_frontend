@@ -103,21 +103,24 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, [items, mounted, isCustomer])
 
   const addItem = async (newItem: CartItem) => {
-    // Optimistic UI
-    setItems((prevItems) => {
-      const existingItem = prevItems.find((item) => String(item.id) === String(newItem.id))
+    // Optimistic UI with rollback on failure
+    const prevItems = items
+    setItems((prevItemsState) => {
+      const existingItem = prevItemsState.find((item) => String(item.id) === String(newItem.id))
       if (existingItem) {
-        return prevItems.map((item) =>
+        return prevItemsState.map((item) =>
           String(item.id) === String(newItem.id) ? { ...item, quantity: item.quantity + newItem.quantity } : item
         )
       }
-      return [...prevItems, newItem]
+      return [...prevItemsState, newItem]
     })
 
     if (isCustomer) {
       try {
         await addToCartApi(String(newItem.id), newItem.quantity)
       } catch (err: any) {
+        // rollback to previous items snapshot
+        setItems(prevItems)
         toast.error(err.message || 'Failed to add item to cart')
       }
     }
