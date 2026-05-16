@@ -69,6 +69,7 @@ export function DashboardHeader({
   const isCustomer = role?.toUpperCase() === 'CUSTOMER';
 
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
 
@@ -110,16 +111,21 @@ export function DashboardHeader({
     if (openTimerRef.current) window.clearTimeout(openTimerRef.current);
     if (focusTimerRef.current) window.clearTimeout(focusTimerRef.current);
     closeTweenRef.current?.kill();
-    if (isMountedRef.current) setIsSearchOpen(false);
 
     const target = searchBarRef.current;
-    if (!target) return;
+    if (!target) {
+      if (isMountedRef.current) setIsSearchOpen(false);
+      return;
+    }
 
     gsap.killTweensOf(target);
     closeTweenRef.current = gsap.to(target, {
       y: "-100%",
       duration: 0.5,
       ease: "power2.out",
+      onComplete: () => {
+        if (isMountedRef.current) setIsSearchOpen(false);
+      }
     });
   };
 
@@ -274,7 +280,7 @@ export function DashboardHeader({
                     >
                       <ShoppingCart className="w-5 h-5" />
                       {cartCount > 0 && (
-                        <span className="absolute -right-1 -top-1 min-w-5 h-5 px-1 rounded-full bg-primary text-primary-foreground text-[10px] leading-5 text-center font-bold">
+                        <span className="absolute -right-1 -top-1 min-w- h-5 px-1 rounded-full bg-primary text-primary-foreground text-[10px] leading-5 text-center font-bold">
                           {cartCount}
                         </span>
                       )}
@@ -285,9 +291,10 @@ export function DashboardHeader({
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
-                      variant="outline"
+                      variant="ghost"
                       size="icon"
                       aria-label="Open profile menu"
+                      className="hover:bg-transparent"
                     >
                       <UserCircle className="w-6 h-6" />
                     </Button>
