@@ -647,3 +647,138 @@ export async function toggleWishlistApi(productId: string): Promise<{ action: "a
   return json.data as { action: "added" | "removed" };
 }
 
+// ─── User Profile API ────────────────────────────────────────────────────────
+
+export type ApiUserProfile = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string | null;
+  role: string;
+  avatarUrl: string | null;
+  status: string;
+  createdAt: string;
+};
+
+export type UpdateProfilePayload = {
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  avatarUrl?: string;
+};
+
+/** Fetch the authenticated user's profile. */
+export async function fetchUserProfile(): Promise<ApiUserProfile> {
+  const res = await apiFetch("/users/me", { cache: "no-store" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.message || `Failed to fetch profile: ${res.status}`);
+  }
+  const json = await res.json();
+  return json.data as ApiUserProfile;
+}
+
+/** Update the authenticated user's profile. */
+export async function updateUserProfile(payload: UpdateProfilePayload): Promise<ApiUserProfile> {
+  const res = await apiFetch("/users/me", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.message || `Failed to update profile: ${res.status}`);
+  }
+  const json = await res.json();
+  return json.data as ApiUserProfile;
+}
+
+// ─── Address API ─────────────────────────────────────────────────────────────
+
+export type ApiAddress = {
+  id: string;
+  label: string | null;
+  recipientName: string;
+  phone: string;
+  region: string;
+  city: string;
+  subCity: string | null;
+  woreda: string | null;
+  kebele: string | null;
+  line1: string;
+  line2: string | null;
+  postalCode: string | null;
+  isDefault: boolean;
+};
+
+export type AddressPayload = {
+  label?: string;
+  recipientName: string;
+  phone: string;
+  region: string;
+  city: string;
+  subCity?: string;
+  woreda?: string;
+  kebele?: string;
+  line1: string;
+  line2?: string;
+  postalCode?: string;
+  isDefault?: boolean;
+};
+
+/** Fetch all saved addresses for the authenticated user. */
+export async function fetchUserAddresses(): Promise<ApiAddress[]> {
+  const res = await apiFetch("/users/me/addresses", { cache: "no-store" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.message || `Failed to fetch addresses: ${res.status}`);
+  }
+  const json = await res.json();
+  return json.data as ApiAddress[];
+}
+
+/** Create a new address for the authenticated user. */
+export async function createUserAddress(payload: AddressPayload): Promise<ApiAddress> {
+  const res = await apiFetch("/users/me/addresses", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.message || `Failed to create address: ${res.status}`);
+  }
+  const json = await res.json();
+  return json.data as ApiAddress;
+}
+
+/** Update an existing address by ID. */
+export async function updateUserAddress(
+  addressId: string,
+  payload: Partial<AddressPayload>
+): Promise<ApiAddress> {
+  const res = await apiFetch(`/users/me/addresses/${addressId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.message || `Failed to update address: ${res.status}`);
+  }
+  const json = await res.json();
+  return json.data as ApiAddress;
+}
+
+/** Delete an address by ID. */
+export async function deleteUserAddress(addressId: string): Promise<void> {
+  const res = await apiFetch(`/users/me/addresses/${addressId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.message || `Failed to delete address: ${res.status}`);
+  }
+}
+
