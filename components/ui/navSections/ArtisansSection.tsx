@@ -1,5 +1,5 @@
 "use client"
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import GenericSection from './GenericSection';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose, DrawerFooter } from '@/components/ui/drawer';
 import { Button } from '@/components/ui/button';
@@ -8,7 +8,7 @@ import { X } from 'lucide-react';
 
 export default function ArtisansSection(props: any) {
   const router = useRouter();
-  const { users = [], usersLoading = false } = props;
+  const { users = [], usersLoading = false, overview, overviewLoading } = props;
   const [selectedArtisan, setSelectedArtisan] = useState<any | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
@@ -19,14 +19,13 @@ export default function ArtisansSection(props: any) {
     const name = u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim() || 'Unknown';
     const statusLabel = u.status || (u.isActive !== undefined ? (u.isActive ? 'Active' : 'Inactive') : '—');
     const shopName = u.artisanProfile?.shopName || '—';
-
     return {
       id: u.id || u._id || 'N/A',
-      name: name,
-      owner: shopName, // Show shop name for artisans
+      name,
+      owner: shopName,
       status: statusLabel,
       updated: u.updatedAt || u.createdAt ? new Date(u.updatedAt || u.createdAt).toLocaleString() : 'N/A',
-      raw: u
+      raw: u,
     };
   });
 
@@ -35,6 +34,22 @@ export default function ArtisansSection(props: any) {
     : rows.length
       ? rows
       : [{ id: '—', name: 'No artisans found', owner: '—', status: '—', updated: '—' }];
+
+  // Real metrics from overview + local filtered artisans
+  const metrics = useMemo(() => {
+    const loading = overviewLoading || usersLoading;
+    const dash = overview;
+    const byRole = (dash?.users || []) as { key: string; count?: number }[];
+    const totalArtisans = loading ? '…' : (byRole.find((r) => r.key === 'ARTISAN')?.count ?? artisans.length);
+    const activeArtisans = loading ? '…' : (dash?.counts?.activeArtisans ?? artisans.filter((u: any) => u.status === 'ACTIVE' || u.isActive).length);
+    const withShop = artisans.filter((u: any) => u.artisanProfile?.shopName).length;
+
+    return [
+      { label: 'Total Artisans', value: String(totalArtisans), description: 'Registered artisan accounts' },
+      { label: 'Active Artisans', value: String(activeArtisans), description: 'Status = ACTIVE' },
+      { label: 'With Shop Profile', value: String(loading ? '…' : withShop), description: 'Have a named artisan shop' },
+    ];
+  }, [overview, overviewLoading, artisans, usersLoading]);
 
   const handleViewDetails = (row: any) => {
     if (row.id === '—') return;
@@ -60,6 +75,8 @@ export default function ArtisansSection(props: any) {
         showFeedback={props.showFeedback}
         setActiveNav={props.setActiveNav}
         onViewDetails={handleViewDetails}
+        metrics={metrics}
+        isPlaceholder={false}
       />
 
       <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>

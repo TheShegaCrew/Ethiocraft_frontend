@@ -1,38 +1,34 @@
 "use client"
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import GenericSection from './GenericSection';
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerClose, DrawerFooter } from '@/components/ui/drawer';
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose, DrawerFooter } from '@/components/ui/drawer';
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
 import { X } from 'lucide-react';
+import { apiFetch } from '@/lib/api';
 
 export default function ProductsSection(props: any) {
+  const { overview, overviewLoading } = props;
   const [products, setProducts] = useState<any[] | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
-    const base = (process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, "http://localhost:4000/api/v1");
-    const url = `${base}/marketplace/products`;
     let cancelled = false;
-
     setLoading(true);
-    fetch(url)
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-        return res.json();
-      })
-      .then((json) => {
+
+    // Fetch both draft pipeline (admin) and published marketplace products in parallel
+    Promise.all([
+      apiFetch('/verifications/products/drafts?page=1&limit=50').then((r) => r.ok ? r.json() : { data: { items: [] } }),
+      apiFetch('/marketplace/products?limit=50').then((r) => r.ok ? r.json() : { data: { items: [] } }),
+    ])
+      .then(([draftsJson, publishedJson]) => {
         if (cancelled) return;
-        let items: any[] = [];
-        // Expected response shape: { message: string, data: { items: [...], meta: {...} } }
-        if (Array.isArray(json?.data?.items)) items = json.data.items;
-        else if (Array.isArray(json)) items = json;
-        else if (Array.isArray(json?.items)) items = json.items;
-        else if (json && typeof json === 'object') {
-          // Fallback: gather any array-like values from the response
-          items = Object.values(json).flat().filter(Boolean);
-        }
-        setProducts(items);
+        const drafts: any[] = draftsJson?.data?.items ?? draftsJson?.data ?? [];
+        const published: any[] = publishedJson?.data?.items ?? [];
+        setProducts([...drafts, ...published]);
       })
       .catch((err) => {
         console.error('Failed to fetch products', err);
@@ -42,30 +38,37 @@ export default function ProductsSection(props: any) {
         if (!cancelled) setLoading(false);
       });
 
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
-  const rows = (products || []).map((p: any, idx: number) => {
-    const id = p?.id ?? p?._id ?? `unknown-${idx + 1}`;
-    const name = p?.name ?? p?.title ?? 'Product details unavailable';
-    const owner = p?.owner ?? p?.vendor ?? 'Product details unavailable';
-    const status = p?.status ?? p?.state ?? 'Product details unavailable';
-    const updatedRaw = p?.updatedAt ?? p?.updated ?? p?.lastUpdated ?? p?.modifiedAt;
-    const updated = updatedRaw ? new Date(updatedRaw).toLocaleString() : 'Product details unavailable';
-    return { id, name, owner, status, updated };
-  });
+  const rows = (products || []).map((p: any, idx: number) => ({
+    id: p?.id ?? p?._id ?? `unknown-${idx + 1}`,
+    name: p?.title ?? p?.name ?? '—',
+    owner: p?.artisan ? `${p.artisan.firstName ?? ''} ${p.artisan.lastName ?? ''}`.trim() : (p?.owner ?? '—'),
+    status: p?.status ?? '—',
+    updated: p?.updatedAt ? new Date(p.updatedAt).toLocaleString() : '—',
+  }));
 
   const placeholderRows = loading
     ? [{ id: '—', name: 'Loading products…', owner: '—', status: '—', updated: '—' }]
     : rows.length
     ? rows
-    : [{ id: '—', name: 'Product details unavailable', owner: 'Product details unavailable', status: 'Product details unavailable', updated: 'Product details unavailable' }];
+    : [{ id: '—', name: 'No products found', owner: '—', status: '—', updated: '—' }];
 
-  const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const router = useRouter();
+  // Real metrics from overview products breakdown
+  const metrics = useMemo(() => {
+    const isLoading = loading || overviewLoading;
+    const productRows = (overview?.products || []) as { key: string; count?: number }[];
+    const total = isLoading ? '…' : (productRows.reduce((s: number, r: any) => s + (Number(r.count) || 0), 0) || (products?.length ?? 0));
+    const published = isLoading ? '…' : (productRows.find((r) => r.key === 'PUBLISHED')?.count ?? (products || []).filter((p: any) => p.status === 'PUBLISHED').length);
+    const pending = isLoading ? '…' : (productRows.find((r) => r.key === 'ADMIN_REVIEW' || r.key === 'PENDING')?.count ?? (products || []).filter((p: any) => ['ADMIN_REVIEW', 'PENDING'].includes(p.status)).length);
+
+    return [
+      { label: 'Total Products', value: String(total), description: 'All products across all statuses' },
+      { label: 'Published', value: String(published), description: 'Live on marketplace' },
+      { label: 'Pending Review', value: String(pending), description: 'Awaiting admin approval' },
+    ];
+  }, [overview, overviewLoading, products, loading]);
 
   const handleViewDetails = (productRow: any) => {
     setSelectedProduct(productRow);
@@ -75,7 +78,7 @@ export default function ProductsSection(props: any) {
   const handleOpenFullRecord = () => {
     if (selectedProduct?.id) {
       router.push(`/admin/products/${selectedProduct.id}`);
-      setIsDrawerOpen(false); // Close drawer after navigation
+      setIsDrawerOpen(false);
     }
   };
 
@@ -89,10 +92,12 @@ export default function ProductsSection(props: any) {
         showFeedback={props.showFeedback}
         setActiveNav={props.setActiveNav}
         onViewDetails={handleViewDetails}
+        metrics={metrics}
+        isPlaceholder={false}
       />
 
       <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
-        <DrawerContent className="fixed bottom-0 right-0 top-0 mt-0 h-full w-full max-w-md rounded-none">
+        <DrawerContent className="fixed bottom-0 right-0 top-0 mt-0 h-full w-full max-w-md rounded-none border-l border-[#e8dece] bg-[#fffdf9]">
           <DrawerHeader className="flex items-center justify-between border-b border-[#e8dece] p-6">
             <DrawerTitle className="text-xl uppercase tracking-[0.04em]" style={{ fontFamily: '"Druk Wide", "Arial Black", sans-serif' }}>
               Product Details
@@ -131,7 +136,7 @@ export default function ProductsSection(props: any) {
             ) : <p>No product selected.</p>}
           </div>
           <DrawerFooter className="border-t border-[#e8dece] p-6">
-            <Button onClick={handleOpenFullRecord} className="w-full">Open Full Record</Button>
+            <Button onClick={handleOpenFullRecord} className="w-full bg-[#3E2723] text-white hover:opacity-90">Open Full Record</Button>
           </DrawerFooter>
         </DrawerContent>
       </Drawer>

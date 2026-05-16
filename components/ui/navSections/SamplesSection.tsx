@@ -1,5 +1,5 @@
 "use client"
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import GenericSection from './GenericSection';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose, DrawerFooter } from '@/components/ui/drawer';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import { apiFetch } from '@/lib/api';
 
 export default function SamplesSection(props: any) {
   const router = useRouter();
+  const { overview, overviewLoading } = props;
   const [samples, setSamples] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedSample, setSelectedSample] = useState<any | null>(null);
@@ -20,9 +21,10 @@ export default function SamplesSection(props: any) {
         const res = await apiFetch('/admin/products/samples');
         if (!res.ok) throw new Error('Failed to fetch');
         const json = await res.json();
-        
         if (json.data && Array.isArray(json.data)) {
           setSamples(json.data);
+        } else if (json.data?.items && Array.isArray(json.data.items)) {
+          setSamples(json.data.items);
         }
       } catch (err) {
         console.error(err);
@@ -46,6 +48,20 @@ export default function SamplesSection(props: any) {
     : rows.length
     ? rows
     : [{ id: '—', name: 'No samples available', owner: '—', status: '—', updated: '—' }];
+
+  // Real metrics derived from local samples list + overview counts
+  const metrics = useMemo(() => {
+    const isLoading = loading || overviewLoading;
+    const pending = isLoading ? '…' : (overview?.counts?.pendingSamples ?? samples.filter((s: any) => s.status === 'PENDING').length);
+    const total = isLoading ? '…' : samples.length;
+    const approved = isLoading ? '…' : samples.filter((s: any) => s.status === 'APPROVED' || s.status === 'VERIFIED').length;
+
+    return [
+      { label: 'Total Samples', value: String(total), description: 'All submitted samples' },
+      { label: 'Pending Review', value: String(pending), description: 'Awaiting admin decision' },
+      { label: 'Approved', value: String(approved), description: 'Approved / Verified' },
+    ];
+  }, [samples, loading, overview, overviewLoading]);
 
   const handleViewDetails = (row: any) => {
     if (row.id === '—') return;
@@ -71,6 +87,8 @@ export default function SamplesSection(props: any) {
         showFeedback={props.showFeedback}
         setActiveNav={props.setActiveNav}
         onViewDetails={handleViewDetails}
+        metrics={metrics}
+        isPlaceholder={false}
       />
 
       <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>

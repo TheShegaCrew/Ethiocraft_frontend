@@ -49,12 +49,14 @@ export default function GenericSection({
         </h1>
         <p className="mt-2 text-sm text-[#6f655d]">{description}</p>
         <div className="mt-5 flex flex-wrap gap-3" style={{ fontFamily: 'Aeonik, Inter, sans-serif' }}>
-          <button
-            className="rounded-xl bg-[#3E2723] px-4 py-2 text-sm text-[#FAFAF9] transition hover:opacity-90"
-            onClick={() => onCreateNew ? onCreateNew() : showFeedback?.(`Create new ${title.slice(0, -1).toLowerCase()} placeholder`)}
-          >
-            New {title.slice(0, -1)}
-          </button>
+          {onCreateNew && (
+            <button
+              className="rounded-xl bg-[#3E2723] px-4 py-2 text-sm text-[#FAFAF9] transition hover:opacity-90"
+              onClick={onCreateNew}
+            >
+              New {title.slice(0, -1)}
+            </button>
+          )}
           <button
             className="rounded-xl border border-[#dfd3c1] px-4 py-2 text-sm text-[#5f564e] transition hover:bg-[#f5f0e7]"
             onClick={() => showFeedback?.(`Import started for ${title}`)}

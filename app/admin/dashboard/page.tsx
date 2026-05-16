@@ -165,13 +165,6 @@ function previousRange(from: Date, to: Date): { from: Date; to: Date } {
   return { from: prevFrom, to: prevTo };
 }
 
-function getApiBase() {
-  return (process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, '') || 'http://localhost:4000/api/v1';
-}
-
-function getAuthHeaders() {
-  return { 'Content-Type': 'application/json' };
-}
 
 function timeAgo(iso: string) {
   const now = new Date();
@@ -237,12 +230,9 @@ export default function App() {
   const [adminProfile, setAdminProfile] = useState<AdminProfile | null>(null);
 
   useEffect(() => {
-    const base = getApiBase();
-    const headers = getAuthHeaders();
-
     const fetchAdminOrders = async () => {
       try {
-        const res = await fetch(`${base}/admin/orders?page=1&limit=40`, { headers });
+        const res = await apiFetch('/admin/orders?page=1&limit=40');
         if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
         const json = await res.json();
         const items = Array.isArray(json?.data?.items) ? json.data.items : [];
@@ -256,7 +246,7 @@ export default function App() {
 
     const fetchGlobalUsers = async () => {
       try {
-        const res = await fetch(`${base}/admin/users?page=1&limit=50`, { headers });
+        const res = await apiFetch('/admin/users?page=1&limit=50');
         if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
         const json = await res.json();
         const items = json?.data?.items && Array.isArray(json.data.items) ? json.data.items : [];
@@ -270,7 +260,7 @@ export default function App() {
 
     const fetchPendingSamples = async () => {
       try {
-        const res = await fetch(`${base}/admin/samples/pending?limit=5`, { headers });
+        const res = await apiFetch('/admin/samples/pending?limit=5');
         if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
         const json = await res.json();
         const samples = json.data?.items || [];
@@ -301,7 +291,7 @@ export default function App() {
 
     const fetchProfile = async () => {
       try {
-        const res = await fetch(`${base}/users/me`, { headers });
+        const res = await apiFetch('/users/me');
         if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
         const json = await res.json();
         setAdminProfile(json?.data || null);
@@ -318,8 +308,6 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false;
-    const base = getApiBase();
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
 
     (async () => {
       setOverviewLoading(true);
@@ -330,9 +318,9 @@ export default function App() {
         const prevParams = new URLSearchParams({ dateFrom: pf.toISOString(), dateTo: pt.toISOString() });
 
         const [ovRes, ovPrevRes, auditRes] = await Promise.all([
-          fetch(`${base}/admin/dashboard/overview?${params}`, { headers }),
-          fetch(`${base}/admin/dashboard/overview?${prevParams}`, { headers }),
-          fetch(`${base}/admin/audit-logs?page=1&limit=10`, { headers }),
+          apiFetch(`/admin/dashboard/overview?${params}`),
+          apiFetch(`/admin/dashboard/overview?${prevParams}`),
+          apiFetch('/admin/audit-logs?page=1&limit=10'),
         ]);
 
         if (cancelled) return;
@@ -608,13 +596,12 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#FAFAF9] text-[#1C1C1C]" style={{ fontFamily: 'Inter, sans-serif' }}>
       {/* Premium background mesh gradient */}
-      <div className="fixed inset-0 pointer-events-none opacity-[0.4]" 
-           style={{ background: 'radial-gradient(circle at 50% 50%, #fdfbf7 0%, #FAFAF9 100%)' }} />
+      <div className="fixed inset-0 pointer-events-none opacity-[0.4]"
+        style={{ background: 'radial-gradient(circle at 50% 50%, #fdfbf7 0%, #FAFAF9 100%)' }} />
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 border-r border-[#e8e0d2]/60 bg-gradient-to-b from-[#fdfbf7] to-[#f5f0e6] px-4 py-6 transition-all duration-500 ease-in-out ${
-          collapsed ? 'lg:w-20' : 'lg:w-72'
-        } w-72 ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} shadow-2xl lg:shadow-none`}
+        className={`fixed inset-y-0 left-0 z-40 border-r border-[#e8e0d2]/60 bg-gradient-to-b from-[#fdfbf7] to-[#f5f0e6] px-4 py-6 transition-all duration-500 ease-in-out ${collapsed ? 'lg:w-20' : 'lg:w-72'
+          } w-72 ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} shadow-2xl lg:shadow-none`}
       >
         <div className="flex items-center justify-between px-2 mb-8">
           <div className="flex items-center gap-3">
@@ -862,7 +849,8 @@ export default function App() {
               ordersLoading={ordersLoading}
               users={globalUsers}
               usersLoading={usersLoading}
-              baseUrl={getApiBase()}
+              overview={overview}
+              baseUrl={(process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, '') || 'http://localhost:4000/api/v1'}
               bearerToken=""
             />
           );
