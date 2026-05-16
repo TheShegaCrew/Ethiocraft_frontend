@@ -1,5 +1,5 @@
-import { Button } from '@/components/ui/button';
 import React from 'react';
+import { Button } from '@/components/ui/button';
 import { Inbox } from 'lucide-react';
 
 type Metric = {
@@ -59,13 +59,7 @@ export default function GenericSection({
           )}
           <button
             className="rounded-xl border border-[#dfd3c1] px-4 py-2 text-sm text-[#5f564e] transition hover:bg-[#f5f0e7]"
-            onClick={() => showFeedback?.(`Import started for ${title}`)}
-          >
-            Import Data
-          </button>
-          <button
-            className="rounded-xl border border-[#dfd3c1] px-4 py-2 text-sm text-[#5f564e] transition hover:bg-[#f5f0e7]"
-            onClick={() => showFeedback?.(`CSV export prepared for ${title}`)}
+            onClick={() => setActiveNav?.('Reports')}
           >
             Export CSV
           </button>
@@ -122,16 +116,8 @@ export default function GenericSection({
                 </div>
                 <h3 className="text-lg font-semibold text-[#3E2723]" style={{ fontFamily: 'Aeonik, Inter, sans-serif' }}>No Records Found</h3>
                 <p className="mt-2 max-w-xs text-sm text-[#85786d]">
-                  We couldn't find any data for this section. Try creating a new record or importing data to get started.
+                  No data available for this section yet.
                 </p>
-                <div className="mt-6">
-                  <Button 
-                    className="bg-[#3E2723] text-white hover:opacity-90 rounded-xl px-6"
-                    onClick={() => showFeedback?.(`Action: Create new ${title.slice(0, -1).toLowerCase()}`)}
-                  >
-                    Create First {title.slice(0, -1)}
-                  </Button>
-                </div>
               </div>
             ) : (
               (placeholderRows || []).map((row) => (
