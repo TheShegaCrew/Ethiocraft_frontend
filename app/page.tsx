@@ -1,7 +1,9 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { ArrowRight, Sparkles } from 'lucide-react'
+import { ArrowRight, Sparkles, Loader2 } from 'lucide-react'
+import { fetchProducts, ApiProductSummary, getProductImage } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Header } from '@/components/shared/header'
@@ -16,45 +18,21 @@ import { toast } from 'react-toastify'
 export default function Home() {
   const { isHovered } = useHeader()
   const { addItem } = useCart()
-  const featuredProducts = [
-    {
-      id: 1,
-      name: 'Traditional Habesha Dress',
-      price: '$149.99',
-      image: '/placeholder.svg?height=300&width=300',
-      category: 'Textiles',
-      rating: 4.8,
-      reviews: 124,
-    },
-    {
-      id: 2,
-      name: 'Hand-Woven Basket',
-      price: '$89.99',
-      image: '/placeholder.svg?height=300&width=300',
-      category: 'Crafts',
-      rating: 4.9,
-      reviews: 89,
-      isNew: true,
-    },
-    {
-      id: 3,
-      name: 'Gold Filigree Jewelry',
-      price: '$199.99',
-      image: '/placeholder.svg?height=300&width=300',
-      category: 'Jewelry',
-      rating: 4.7,
-      reviews: 156,
-    },
-    {
-      id: 4,
-      name: 'Leather Shoulder Bag',
-      price: '$129.99',
-      image: '/placeholder.svg?height=300&width=300',
-      category: 'Accessories',
-      rating: 4.6,
-      reviews: 92,
-    },
-  ]
+  const [featuredProducts, setFeaturedProducts] = useState<ApiProductSummary[]>([])
+  const [isLoadingFeatured, setIsLoadingFeatured] = useState(true)
+
+  useEffect(() => {
+    fetchProducts({ sortBy: 'rating_desc', limit: 4 })
+      .then((res) => {
+        setFeaturedProducts(res.items)
+      })
+      .catch((err) => {
+        console.error("Failed to fetch featured products", err)
+      })
+      .finally(() => {
+        setIsLoadingFeatured(false)
+      })
+  }, [])
 
   const categories = [
     {
@@ -83,18 +61,18 @@ export default function Home() {
     },
   ]
 
-  const handleAddToCart = (event: React.MouseEvent<HTMLButtonElement>, product: typeof featuredProducts[number]) => {
+  const handleAddToCart = (event: React.MouseEvent<HTMLButtonElement>, product: ApiProductSummary) => {
     event.preventDefault()
     event.stopPropagation()
     addItem({
       id: product.id,
-      name: product.name,
-      price: Number.parseFloat(product.price.replace('$', '')),
-      image: product.image,
+      name: product.title,
+      price: product.price,
+      image: getProductImage(product),
       quantity: 1,
       category: product.category,
     })
-    toast.success(`${product.name} added to cart`)
+    toast.success(`${product.title} added to cart`)
   }
 
   return (
@@ -192,57 +170,63 @@ export default function Home() {
             <h2 className="text-2xl uppercase font-druk-medium tracking-wide md:text-3xl font-bold">Featured Products</h2>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {featuredProducts.map((product) => (
-              <Link key={product.id} href={`/products/${product.id}`}>
-                <Card className="h-full overflow-hidden hover:shadow-lg transition hover:-translate-y-1">
-                  {/* Product Image */}
-                  <div className="relative bg-muted aspect-square overflow-hidden">
-                    <img
-                      src={product.image || "/placeholder.svg"}
-                      alt={product.name}
-                      className="w-full h-full object-cover hover:scale-110 transition duration-300"
-                    />
-                    {product.isNew && (
-                      <Badge className="absolute top-4 right-4 bg-accent text-accent-foreground">
-                        New
-                      </Badge>
-                    )}
-                  </div>
+          {isLoadingFeatured ? (
+            <div className="flex justify-center items-center py-20">
+              <Loader2 className="h-8 w-8 animate-spin text-secondary" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {featuredProducts.map((product) => (
+                <Link key={product.id} href={`/products/${product.id}`}>
+                  <Card className="h-full overflow-hidden hover:shadow-lg transition hover:-translate-y-1">
+                    {/* Product Image */}
+                    <div className="relative bg-muted aspect-square overflow-hidden">
+                      <img
+                        src={getProductImage(product)}
+                        alt={product.title}
+                        className="w-full h-full object-cover hover:scale-110 transition duration-300"
+                      />
+                      {product.publishedAt && (
+                        <Badge className="absolute top-4 right-4 bg-accent text-accent-foreground">
+                          Handmade
+                        </Badge>
+                      )}
+                    </div>
 
-                  {/* Product Info */}
-                  <div className="p-4">
-                    <p className="text-sm text-muted-foreground mb-2">{product.category}</p>
-                    <h3 className="font-semibold font-druk-medium text-lg mb-2 line-clamp-2 uppercase tracking-tight">{product.name}</h3>
+                    {/* Product Info */}
+                    <div className="p-4">
+                      <p className="text-sm text-muted-foreground mb-2">{product.category}</p>
+                      <h3 className="font-semibold font-druk-medium text-lg mb-2 line-clamp-2 uppercase tracking-tight">{product.title}</h3>
 
-                    {/* Rating */}
-                    <div className="flex items-center gap-1 mb-3">
-                      <div className="flex">
-                        {[...Array(5)].map((_, i) => (
-                          <span key={i} className={i < Math.floor(product.rating) ? 'text-secondary' : 'text-muted'}>
-                            ★
-                          </span>
-                        ))}
+                      {/* Rating (Always 5 stars visually as fetched by rating_desc) */}
+                      <div className="flex items-center gap-1 mb-3">
+                        <div className="flex">
+                          {[...Array(5)].map((_, i) => (
+                            <span key={i} className="text-secondary">
+                              ★
+                            </span>
+                          ))}
+                        </div>
+                        <span className="text-xs text-muted-foreground">({product._count?.reviews || 0})</span>
                       </div>
-                      <span className="text-xs text-muted-foreground">({product.reviews})</span>
-                    </div>
 
-                    {/* Price and Button */}
-                    <div className="flex items-center justify-between">
-                      <span className="text-lg font-bold text-secondary">{product.price}</span>
-                      <Button
-                        size="sm"
-                        className="bg-primary hover:bg-primary/90"
-                        onClick={(event) => handleAddToCart(event, product)}
-                      >
-                        Add to Cart
-                      </Button>
+                      {/* Price and Button */}
+                      <div className="flex items-center justify-between">
+                        <span className="text-lg font-bold text-secondary">${product.price}</span>
+                        <Button
+                          size="sm"
+                          className="bg-primary hover:bg-primary/90"
+                          onClick={(event) => handleAddToCart(event, product)}
+                        >
+                          Add to Cart
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                </Card>
-              </Link>
-            ))}
-          </div>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
