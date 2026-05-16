@@ -7,6 +7,7 @@ import 'react-toastify/dist/ReactToastify.css'
 import { HeaderProvider } from '@/lib/header-context'
 import { AuthProvider } from '@/lib/auth-context'
 import { CartProvider } from '@/lib/cart-context'
+import { WishlistProvider } from '@/lib/wishlist-context'
 import ToastProvider from '@/components/ToastProvider'
 
 const inter = Inter({
@@ -61,10 +62,12 @@ export default function RootLayout({
       <body className={`${inter.variable} ${aeonik.variable} ${drukMedium.variable} ${logo.variable} font-inter antialiased bg-background text-foreground`}>
         <AuthProvider>
           <CartProvider>
-            <HeaderProvider>
-              {children}
-              <ToastProvider />
-            </HeaderProvider>
+            <WishlistProvider>
+              <HeaderProvider>
+                {children}
+                <ToastProvider />
+              </HeaderProvider>
+            </WishlistProvider>
           </CartProvider>
         </AuthProvider>
       </body>

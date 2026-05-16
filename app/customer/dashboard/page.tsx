@@ -11,15 +11,15 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
 import { useCart } from '@/lib/cart-context'
-import { getWishlistProductIds, toggleWishlistProduct } from '@/lib/wishlist'
-import { fetchOrders, ApiOrder } from '@/lib/api'
+import { useWishlist } from '@/lib/wishlist-context'
+import { fetchOrders, ApiOrder, fetchProductById, ApiProductSummary } from '@/lib/api'
 import { toast } from 'react-toastify'
 import { useNotifications } from '@/hooks/useNotifications'
 
 export default function CustomerDashboard() {
   const { token, role } = useAuth()
   const { addItem } = useCart()
-  const wishlistUserKey = token ?? 'guest'
+  const { wishlistIds, toggleWishlist } = useWishlist()
   const [orders, setOrders] = useState<ApiOrder[]>([])
   const [totalOrders, setTotalOrders] = useState<number>(0)
   const [ordersLoading, setOrdersLoading] = useState(true)
@@ -125,7 +125,6 @@ export default function CustomerDashboard() {
       artisan: 'EthioCraft Artisan',
     },
   ]
-  const [wishlistIds, setWishlistIds] = useState<(string | number)[]>([])
   const { notifications, unreadCount: unreadNotifications, markAsRead, markAllAsRead, refresh } = useNotifications({ enabled: Boolean(token || role) })
 
   const headerNotifications = notifications.map(n => ({
@@ -135,31 +134,97 @@ export default function CustomerDashboard() {
     unread: !n.isRead
   }))
 
+  const [wishlistProducts, setWishlistProducts] = useState<ApiProductSummary[]>([])
+
   useEffect(() => {
-    setWishlistIds(getWishlistProductIds(wishlistUserKey))
-  }, [wishlistUserKey])
+    let mounted = true
 
-  const wishlistItems = useMemo(
-    () => catalogProducts.filter((product) => wishlistIds.includes(product.id)),
-    [wishlistIds],
-  )
+    async function loadWishlistProducts() {
+      if (!wishlistIds || wishlistIds.length === 0) {
+        if (mounted) setWishlistProducts([])
+        return
+      }
 
-  const handleRemoveWishlistItem = (productId: number, productName: string) => {
-    const { ids } = toggleWishlistProduct(wishlistUserKey, productId)
-    setWishlistIds(ids)
-    toast.info(`${productName} removed from wishlist`)
+      const results: ApiProductSummary[] = []
+
+      for (const id of wishlistIds) {
+        // Prefer local catalog match for demo/sample products
+        const localMatch = catalogProducts.find(
+          (p) => String(p.id) === String(id) || Number(p.id) === Number(id),
+        )
+        if (localMatch) {
+          results.push({
+            id: String(localMatch.id),
+            title: localMatch.name,
+            slug: String(localMatch.id),
+            description: localMatch.name,
+            price: localMatch.price,
+            category: 'Sample',
+            tags: [],
+            status: 'PUBLISHED',
+            publishedAt: null,
+            media: [{ id: '1', url: localMatch.image, sortOrder: 0 }],
+            artisan: { id: 'local', firstName: localMatch.artisan, lastName: '' , artisanProfile: null },
+            _count: { reviews: 0 },
+            // fields below for detail shape
+            shortDescription: localMatch.name,
+            material: undefined,
+            dimensions: undefined,
+            careInstructions: undefined,
+            reviews: [],
+            relatedProducts: [],
+            averageRating: null,
+          } as ApiProductSummary)
+          continue
+        }
+
+        try {
+          const prod = await fetchProductById(String(id))
+          results.push(prod)
+        } catch (e) {
+          // ignore missing products
+          console.warn('Failed to load wishlist product', id, e)
+        }
+      }
+
+      if (mounted) setWishlistProducts(results)
+    }
+
+    loadWishlistProducts()
+
+    return () => {
+      mounted = false
+    }
+  }, [wishlistIds])
+
+  const handleRemoveWishlistItem = (productId: string | number, productName?: string) => {
+    // Optimistically update local wishlist UI
+    setWishlistProducts((prev) => prev.filter((p) => String(p.id) !== String(productId)))
+    // Update context / backend
+    try {
+      toggleWishlist(productId)
+    } catch (e) {
+      console.warn('Failed to toggle wishlist:', e)
+    }
+    if (productName) toast.info(`${productName} removed from wishlist`)
   }
 
-  const handleAddWishlistItemToCart = (item: (typeof catalogProducts)[number]) => {
+  const handleAddWishlistItemToCart = (item: ApiProductSummary | (typeof catalogProducts)[number]) => {
+    const id = (item as any).id
+    const name = (item as any).title || (item as any).name
+    const price = Number((item as any).price || 0)
+    const image = (item as any).media?.[0]?.url || (item as any).image || '/placeholder-product.jpg'
+
     addItem({
-      id: item.id,
-      name: item.name,
-      price: item.price,
-      image: item.image,
+      id,
+      name,
+      price,
+      image,
       quantity: 1,
       category: 'Wishlist',
     })
-    toast.success(`${item.name} added to cart`)
+
+    toast.success(`${name} added to cart`)
   }
 
   const getStatusColor = (status: string) => {
@@ -232,7 +297,7 @@ export default function CustomerDashboard() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Wishlist Items</p>
-                  <p className="text-2xl font-bold">{wishlistItems.length}</p>
+                  <p className="text-2xl font-bold">{wishlistProducts.length}</p>
                 </div>
               </div>
             </Card>
@@ -314,7 +379,7 @@ export default function CustomerDashboard() {
             <TabsContent value="wishlist" className="space-y-4">
               <h2 className="text-xl font-semibold mb-4">Your Wishlist</h2>
 
-              {wishlistItems.length === 0 ? (
+              {wishlistProducts.length === 0 ? (
                 <Card className="p-8 text-center">
                   <p className="text-muted-foreground">No wishlist items yet.</p>
                   <Link href="/products">
@@ -323,38 +388,39 @@ export default function CustomerDashboard() {
                 </Card>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {wishlistItems.map((item) => (
-                    <Card key={item.id} className="overflow-hidden">
-                      <div className="flex gap-4 p-4">
-                        <img
-                          src={item.image || "/placeholder.svg"}
-                          alt={item.name}
-                          className="w-24 h-24 object-cover rounded-lg bg-muted"
-                        />
-                        <div className="flex-1">
-                          <p className="font-semibold">{item.name}</p>
-                          <p className="text-sm text-muted-foreground">{item.artisan}</p>
-                          <p className="text-lg font-bold text-secondary mt-2">${item.price}</p>
-                          <div className="flex gap-2 mt-3">
-                            <Button
-                              size="sm"
-                              className="flex-1 bg-primary"
-                              onClick={() => handleAddWishlistItemToCart(item)}
-                            >
-                              Add to Cart
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleRemoveWishlistItem(item.id, item.name)}
-                            >
-                              Remove
-                            </Button>
+                  {wishlistProducts.map((prod) => (
+                      <Card key={prod.id} className="overflow-hidden">
+                        <div className="flex gap-4 p-4">
+                          <img
+                            src={prod.media?.[0]?.url || '/placeholder.svg'}
+                            alt={prod.title}
+                            className="w-24 h-24 object-cover rounded-lg bg-muted"
+                          />
+                          <div className="flex-1">
+                            <p className="font-semibold">{prod.title}</p>
+                            <p className="text-sm text-muted-foreground">{ prod.materials?.join(', ')}</p>
+                            
+                            <p className="text-lg font-bold text-secondary mt-2">${prod.price}</p>
+                            <div className="flex gap-2 mt-3">
+                              <Button
+                                size="sm"
+                                className="flex-1 bg-primary"
+                                onClick={() => handleAddWishlistItemToCart({ id: prod.id as any, name: prod.title, price: prod.price as any, image: prod.media?.[0]?.url || '', artisan: prod.artisan?.firstName || '' })}
+                              >
+                                Add to Cart
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleRemoveWishlistItem(prod.id, prod.title)}
+                              >
+                                Remove
+                              </Button>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </Card>
-                  ))}
+                      </Card>
+                    ))}
                 </div>
               )}
             </TabsContent>

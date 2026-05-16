@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { useAuth } from "@/lib/auth-context";
 import { useCart } from "@/lib/cart-context";
-import { toggleWishlistProduct, getWishlistProductIds } from "@/lib/wishlist";
+import { useWishlist } from "@/lib/wishlist-context";
 import { Heart } from "lucide-react";
 import Link from "next/link";
 import ChatSupport from "@/components/ChatSupport";
@@ -131,13 +131,12 @@ function ProductPageContent() {
   const searchParams = useSearchParams();
   const { token } = useAuth();
   const { addItem } = useCart();
-  const wishlistUserKey = token ?? "guest";
+  const { wishlistIds, toggleWishlist } = useWishlist();
   const gridRef = useRef<HTMLDivElement>(null);
 
   const [sortBy, setSortBy] = useState<UiSortId>("curated");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [visibleIds, setVisibleIds] = useState<string[]>([]);
-  const [wishlistIds, setWishlistIds] = useState<Array<string | number>>([]);
   const [wishlistMessage, setWishlistMessage] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
@@ -361,9 +360,7 @@ function ProductPageContent() {
     return () => observer.disconnect();
   }, [filteredProducts]);
 
-  useEffect(() => {
-    setWishlistIds(getWishlistProductIds(wishlistUserKey));
-  }, [wishlistUserKey]);
+
 
   useEffect(() => {
     if (!wishlistMessage) return;
@@ -413,8 +410,7 @@ function ProductPageContent() {
     event.preventDefault();
     event.stopPropagation();
 
-    const { ids, added } = toggleWishlistProduct(wishlistUserKey, productId);
-    setWishlistIds(ids);
+    const { added } = toggleWishlist(productId);
     setWishlistMessage(
       added ? "Added to wishlist" : "Removed from wishlist",
     );

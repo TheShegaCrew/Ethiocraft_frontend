@@ -609,3 +609,41 @@ export async function clearCartApi(): Promise<void> {
     throw new Error(`Failed to clear cart: ${res.status}`);
   }
 }
+
+// ─── Wishlist API ───────────────────────────────────────────────────────────
+
+export type ApiWishlistItem = {
+  id: string;
+  productId: string;
+  createdAt: string;
+  // product details omitted for brevity since we mostly just need productIds for the context
+};
+
+export type WishlistResponse = {
+  items: ApiWishlistItem[];
+};
+
+export async function fetchWishlistItems(): Promise<WishlistResponse> {
+  const res = await apiFetch("/wishlist?limit=100", { cache: "no-store" });
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "");
+    throw new Error(`Failed to fetch wishlist: ${res.status} - ${errText}`);
+  }
+  const json = await res.json();
+  return json.data as WishlistResponse;
+}
+
+export async function toggleWishlistApi(productId: string): Promise<{ action: "added" | "removed" }> {
+  const res = await apiFetch("/wishlist/toggle", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ productId }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.message || `Failed to toggle wishlist item: ${res.status}`);
+  }
+  const json = await res.json();
+  return json.data as { action: "added" | "removed" };
+}
+
