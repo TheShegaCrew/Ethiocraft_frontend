@@ -427,14 +427,14 @@ export function DashboardHeader({
               />
               <div
                 ref={searchBarRef}
-                className="fixed top-0 left-0 w-full bg-[#FAFAF9] z-[60] shadow-lg"
+                className="fixed top-0 left-0 w-full bg-transparent z-[60]"
                 onClick={(e) => e.stopPropagation()}
               >
-                <div className="container mx-auto px-4 py-4">
+                <div className="container mx-auto px-4 py-6">
                   <Suspense
                     fallback={
                       <div
-                        className="mx-auto h-11 w-full max-w-2xl animate-pulse rounded-none border border-gray-300 bg-white"
+                        className="mx-auto h-12 w-full max-w-2xl animate-pulse rounded-full border border-gray-200 bg-white shadow-sm"
                         aria-hidden
                       />
                     }
