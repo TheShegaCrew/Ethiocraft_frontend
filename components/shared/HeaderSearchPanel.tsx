@@ -51,9 +51,12 @@ export default function HeaderSearchPanel({
   );
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl items-start gap-3">
+    /* OUTERMOST FLEX CONTAINER: 
+       Added a unified background, pill-shape (rounded-full), subtle shadow, 
+       and smooth transitions when the user focuses on the search bar. */
+    <div className="mx-auto flex w-full max-w-2xl items-center gap-2 rounded-full border border-neutral-200 bg-white px-4 py-2 shadow-sm transition-all duration-300 focus-within:border-neutral-300 focus-within:shadow-md dark:border-neutral-800 dark:bg-neutral-950">
       <ProductSearchAutocomplete
-        className="min-w-0 flex-1"
+        className="min-w-0 flex-1 bg-transparent outline-none"
         committedQuery={committedQuery}
         placeholder="Search products, artisans, materials…"
         onApplySearch={(query) => applySearch(query)}
@@ -63,7 +66,10 @@ export default function HeaderSearchPanel({
         type="button"
         variant="ghost"
         size="icon"
-        className="mt-0.5 shrink-0 text-muted-foreground hover:text-[#1C1C1C]"
+        /* CLOSE "X" BUTTON: 
+           Removed the top margin (since it's now center-aligned), made it fully rounded, 
+           and added a subtle background hover effect. */
+        className="shrink-0 rounded-full text-muted-foreground transition-colors hover:bg-neutral-100 hover:text-foreground dark:hover:bg-neutral-800"
         aria-label="Close search"
         onClick={onClose}
       >

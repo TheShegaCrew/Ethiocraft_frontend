@@ -180,7 +180,7 @@ export default function ProductSearchAutocomplete({
           aria-controls={listId}
           placeholder={placeholder}
           value={value}
-          className="h-11 w-full min-w-[200px] rounded-none border border-[#ddd8cf] bg-white px-4 pr-10 text-sm outline-none transition-colors focus:border-[#C6A75E]"
+          className="h-11 w-full min-w-[200px] bg-transparent px-2 pr-10 text-sm outline-none border-none focus:ring-0"
           style={{ fontFamily: "Aeonik, Inter, sans-serif" }}
           onChange={(ev) => handleChange(ev.target.value)}
           onFocus={() => {
@@ -213,11 +213,10 @@ export default function ProductSearchAutocomplete({
                     type="button"
                     role="option"
                     aria-selected={active}
-                    className={`flex w-full flex-col gap-0.5 border-b border-[#f0ebe3] px-3 py-2.5 text-left text-sm transition-colors last:border-b-0 ${
-                      active
+                    className={`flex w-full flex-col gap-0.5 border-b border-[#f0ebe3] px-3 py-2.5 text-left text-sm transition-colors last:border-b-0 ${active
                         ? "bg-[#f3ebe0]"
                         : "bg-transparent hover:bg-[#f7f4ef]"
-                    }`}
+                      }`}
                     style={{ fontFamily: "Aeonik, Inter, sans-serif" }}
                     onMouseDown={(ev) => ev.preventDefault()}
                     onMouseEnter={() => setActiveIndex(idx)}
