@@ -10,6 +10,8 @@ import {
   Bell,
   User,
   LogOut,
+  RefreshCw,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,13 +38,20 @@ type DashboardHeaderProps = {
     unread?: boolean;
   }>;
   unreadNotifications?: number;
+  markAsRead?: (id: string | number) => void | Promise<void>;
+  markAllAsRead?: () => void | Promise<void>;
+  refresh?: () => void | Promise<void>;
 };
 
 export function DashboardHeader({
   notifications = [],
   unreadNotifications = 0,
   statusText = "",
+  markAsRead,
+  markAllAsRead,
+  refresh,
 }: DashboardHeaderProps) {
+  const [refreshLoading, setRefreshLoading] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const searchBarRef = useRef<HTMLDivElement>(null);
@@ -60,6 +69,7 @@ export function DashboardHeader({
   const isCustomer = role?.toUpperCase() === 'CUSTOMER';
 
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
 
@@ -101,16 +111,21 @@ export function DashboardHeader({
     if (openTimerRef.current) window.clearTimeout(openTimerRef.current);
     if (focusTimerRef.current) window.clearTimeout(focusTimerRef.current);
     closeTweenRef.current?.kill();
-    if (isMountedRef.current) setIsSearchOpen(false);
 
     const target = searchBarRef.current;
-    if (!target) return;
+    if (!target) {
+      if (isMountedRef.current) setIsSearchOpen(false);
+      return;
+    }
 
     gsap.killTweensOf(target);
     closeTweenRef.current = gsap.to(target, {
       y: "-100%",
       duration: 0.5,
       ease: "power2.out",
+      onComplete: () => {
+        if (isMountedRef.current) setIsSearchOpen(false);
+      }
     });
   };
 
@@ -168,7 +183,19 @@ export function DashboardHeader({
                 {/* Notifications */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="icon" className="relative">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="relative"
+                      aria-label="Notifications"
+                      onClick={() => {
+                        // Dev-time debug: log notifications when the bell is clicked
+                        try {
+                          // eslint-disable-next-line no-console
+                          console.info('DashboardHeader: notifications', notifications, 'unread', unreadNotifications);
+                        } catch (e) {}
+                      }}
+                    >
                       <Bell className="w-5 h-5" />
                       {unreadNotifications > 0 && (
                         <span className="absolute top-1 right-1 min-w-4 h-4 px-1 rounded-full bg-destructive text-[10px] text-destructive-foreground leading-4 text-center">
@@ -178,8 +205,41 @@ export function DashboardHeader({
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-[340px] p-0">
-                    <div className="px-4 py-3 border-b border-border">
+                    <div className="px-4 py-3 border-b border-border flex items-center justify-between">
                       <p className="font-semibold text-sm">Notifications</p>
+                      <div className="flex items-center gap-2">
+                        {unreadNotifications > 0 && markAllAsRead && (
+                          <button
+                            onClick={() => markAllAsRead()}
+                            className="text-xs text-muted-foreground hover:underline"
+                          >
+                            Mark all read
+                          </button>
+                        )}
+                        {refresh && (
+                          <button
+                            onClick={async () => {
+                              if (refreshLoading) return;
+                              try {
+                                setRefreshLoading(true);
+                                await refresh();
+                              } catch (e) {
+                                // ignore errors for dev helper
+                              } finally {
+                                setRefreshLoading(false);
+                              }
+                            }}
+                            aria-label="Refresh notifications"
+                            className="text-xs text-muted-foreground hover:underline flex items-center gap-1"
+                          >
+                            {refreshLoading ? (
+                              <Loader2 className="w-4 h-4" style={{ animation: 'spin 1.2s linear 5' }} />
+                            ) : (
+                              <RefreshCw className="w-4 h-4" />
+                            )}
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <div className="max-h-80 overflow-y-auto">
                       {notifications.length === 0 ? (
@@ -188,9 +248,12 @@ export function DashboardHeader({
                         </p>
                       ) : (
                         notifications.map((note) => (
-                          <div
+                          <button
                             key={note.id}
-                            className={`px-4 py-3 border-b border-border/60 last:border-0 ${note.unread ? "bg-muted/30" : ""}`}
+                            onClick={() => {
+                              if (markAsRead) markAsRead(note.id);
+                            }}
+                            className={`w-full text-left px-4 py-3 border-b border-border/60 last:border-0 ${note.unread ? "bg-muted/30" : ""}`}
                           >
                             <p
                               className={`text-sm ${note.unread ? "font-semibold" : "text-muted-foreground"}`}
@@ -200,7 +263,7 @@ export function DashboardHeader({
                             <p className="text-xs text-muted-foreground mt-1">
                               {note.time}
                             </p>
-                          </div>
+                          </button>
                         ))
                       )}
                     </div>
@@ -217,7 +280,7 @@ export function DashboardHeader({
                     >
                       <ShoppingCart className="w-5 h-5" />
                       {cartCount > 0 && (
-                        <span className="absolute -right-1 -top-1 min-w-5 h-5 px-1 rounded-full bg-primary text-primary-foreground text-[10px] leading-5 text-center font-bold">
+                        <span className="absolute -right-1 -top-1 min-w- h-5 px-1 rounded-full bg-primary text-primary-foreground text-[10px] leading-5 text-center font-bold">
                           {cartCount}
                         </span>
                       )}
@@ -228,9 +291,10 @@ export function DashboardHeader({
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
-                      variant="outline"
+                      variant="ghost"
                       size="icon"
                       aria-label="Open profile menu"
+                      className="hover:bg-transparent"
                     >
                       <UserCircle className="w-6 h-6" />
                     </Button>

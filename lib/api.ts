@@ -175,6 +175,21 @@ export type OrderListResponse = {
   meta: PaginationMeta;
 };
 
+export type ApiNotification = {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  isRead: boolean;
+  metadata?: any;
+  createdAt: string;
+};
+
+export type NotificationListResponse = {
+  items: ApiNotification[];
+  // Backend returns a flat array — meta will be derived client-side
+};
+
 // ─── Query params for product list ───────────────────────────────────────────
 
 export type MarketplaceSortBy =
@@ -458,3 +473,177 @@ export async function submitReview(
   const json = await res.json();
   return json.data as ApiReview;
 }
+
+export async function fetchNotifications(
+  params: { page?: number; limit?: number; unreadOnly?: boolean } = {}
+): Promise<NotificationListResponse> {
+  const res = await apiFetch("/notifications/me", {
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to fetch notifications: ${res.status}`);
+  }
+
+  const json = await res.json();
+  // Backend returns: { message, data: [...] }  (plain array, not paginated)
+  const raw = Array.isArray(json.data) ? json.data : [];
+  return { items: raw as ApiNotification[] };
+}
+
+export async function markNotificationAsRead(id: string): Promise<ApiNotification> {
+  const res = await apiFetch(`/notifications/${id}/read`, {
+    method: "PATCH",
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to mark notification as read: ${res.status}`);
+  }
+
+  const json = await res.json();
+  return json.data as ApiNotification;
+}
+
+/** Admin: send a manual notification to a specific user (admin-only). */
+export async function sendAdminNotification(userId: string, payload: { title: string; message: string; type?: string }) {
+  const res = await apiFetch(`/admin/users/${userId}/notify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.message || `Failed to send notification: ${res.status}`);
+  }
+
+  const json = await res.json();
+  return json.data as ApiNotification;
+}
+
+/** Admin: request re-verification for a sample (admin-only). */
+export async function adminReverifySample(sampleId: string, payload: { message: string }) {
+  const res = await apiFetch(`/admin/samples/${sampleId}/re-verify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.message || `Failed to request re-verification: ${res.status}`);
+  }
+
+  const json = await res.json();
+  return json.data;
+}
+
+// ─── Cart API ───────────────────────────────────────────────────────────────
+
+export type ApiCartItem = {
+  id: string;
+  productId: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+  product: ApiProductSummary;
+};
+
+export type ApiCartResponse = {
+  items: ApiCartItem[];
+  summary: {
+    itemCount: number;
+    subtotal: number;
+    currency: string;
+  };
+};
+
+export async function fetchCartItems(): Promise<ApiCartResponse> {
+  const res = await apiFetch("/cart", { cache: "no-store" });
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "");
+    throw new Error(`Failed to fetch cart: ${res.status} - ${errText}`);
+  }
+  const json = await res.json();
+  return json.data as ApiCartResponse;
+}
+
+export async function addToCartApi(productId: string, quantity: number = 1): Promise<void> {
+  const res = await apiFetch("/cart", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ productId, quantity }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.message || `Failed to add to cart: ${res.status}`);
+  }
+}
+
+export async function updateCartItemApi(productId: string, quantity: number): Promise<void> {
+  const res = await apiFetch(`/cart/${productId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ quantity }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.message || `Failed to update cart item: ${res.status}`);
+  }
+}
+
+export async function removeFromCartApi(productId: string): Promise<void> {
+  const res = await apiFetch(`/cart/${productId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to remove cart item: ${res.status}`);
+  }
+}
+
+export async function clearCartApi(): Promise<void> {
+  const res = await apiFetch("/cart", {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to clear cart: ${res.status}`);
+  }
+}
+
+// ─── Wishlist API ───────────────────────────────────────────────────────────
+
+export type ApiWishlistItem = {
+  id: string;
+  productId: string;
+  createdAt: string;
+  // product details omitted for brevity since we mostly just need productIds for the context
+};
+
+export type WishlistResponse = {
+  items: ApiWishlistItem[];
+};
+
+export async function fetchWishlistItems(): Promise<WishlistResponse> {
+  const res = await apiFetch("/wishlist?limit=100", { cache: "no-store" });
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "");
+    throw new Error(`Failed to fetch wishlist: ${res.status} - ${errText}`);
+  }
+  const json = await res.json();
+  return json.data as WishlistResponse;
+}
+
+export async function toggleWishlistApi(productId: string): Promise<{ action: "added" | "removed" }> {
+  const res = await apiFetch("/wishlist/toggle", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ productId }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.message || `Failed to toggle wishlist item: ${res.status}`);
+  }
+  const json = await res.json();
+  return json.data as { action: "added" | "removed" };
+}
+

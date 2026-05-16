@@ -42,6 +42,7 @@ import SamplesSection from '@/components/ui/navSections/SamplesSection';
 import AgentsSection from '@/components/ui/navSections/AgentsSection';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { useNotifications } from '@/hooks/useNotifications';
 /* Admin Dashboard Overview
  - This component composes the main admin interface and several panels.
  - Mapping of admin responsibilities to UI areas in this file:
@@ -92,10 +93,7 @@ const navigation: NavItem[] = [
 ];
 
 const initialApprovalItems: ApprovalItem[] = [];
-// Sample pending approvals used to populate the 'Pending Approvals' panel.
 // Replace with a real approval queue fetched from the server; wire approve/reject actions.
-
-const initialNotifications: NotificationItem[] = [];
 
 type AdminProfile = {
   id: string;
@@ -220,7 +218,17 @@ export default function App() {
   const [usersLoading, setUsersLoading] = useState(true);
 
   const [approvalItems, setApprovalItems] = useState<ApprovalItem[]>(initialApprovalItems);
-  const [notifications, setNotifications] = useState<NotificationItem[]>(initialNotifications);
+  const { notifications: rawNotifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+
+  const notifications = useMemo(() => {
+    return rawNotifications.slice(0, 12).map((n: any) => ({
+      id: String(n.id),
+      notificationId: String(n.id),
+      title: n.title || n.message || 'Notification',
+      time: n.createdAt ? timeAgo(n.createdAt) : 'Just now',
+      read: Boolean(n.isRead),
+    }));
+  }, [rawNotifications]);
 
   const [overview, setOverview] = useState<Record<string, any> | null>(null);
   const [overviewPrev, setOverviewPrev] = useState<Record<string, any> | null>(null);
@@ -291,26 +299,6 @@ export default function App() {
       }
     };
 
-    const fetchNotifications = async () => {
-      try {
-        const res = await fetch(`${base}/notifications/me`, { headers });
-        if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-        const json = await res.json();
-        const items = Array.isArray(json?.data) ? json.data : [];
-        setNotifications(
-          items.slice(0, 12).map((n: any) => ({
-            id: String(n.id),
-            notificationId: String(n.id),
-            title: n.title || n.message || 'Notification',
-            time: n.createdAt ? timeAgo(n.createdAt) : 'Just now',
-            read: Boolean(n.isRead),
-          })),
-        );
-      } catch (err) {
-        console.error('Failed to fetch notifications', err);
-      }
-    };
-
     const fetchProfile = async () => {
       try {
         const res = await fetch(`${base}/users/me`, { headers });
@@ -325,7 +313,6 @@ export default function App() {
     fetchAdminOrders();
     fetchGlobalUsers();
     fetchPendingSamples();
-    fetchNotifications();
     fetchProfile();
   }, []);
 
@@ -389,7 +376,7 @@ export default function App() {
   const rowHeight = 56;
   const containerHeight = 336;
 
-  const unreadNotifications = notifications.filter((item) => !item.read).length;
+  const unreadNotifications = unreadCount;
 
   const usersSnapshotComputed = useMemo(
     () =>
@@ -781,11 +768,7 @@ export default function App() {
                   <button
                     className="text-xs text-[#7d7268] underline underline-offset-2"
                     onClick={() => {
-                      const headers = getAuthHeaders();
-                      notifications.filter((n) => !n.read).forEach((n) => {
-                        fetch(`${getApiBase()}/notifications/${n.notificationId}/read`, { method: 'PATCH', headers }).catch(() => null);
-                      });
-                      setNotifications((current) => current.map((item) => ({ ...item, read: true })));
+                      markAllAsRead();
                       showFeedback('All notifications marked as read');
                     }}
                   >
@@ -798,11 +781,7 @@ export default function App() {
                       key={item.id}
                       className="w-full rounded-xl px-3 py-2 text-left transition hover:bg-[#f8f2e7]"
                       onClick={() => {
-                        const headers = getAuthHeaders();
-                        fetch(`${getApiBase()}/notifications/${item.notificationId}/read`, { method: 'PATCH', headers }).catch(() => null);
-                        setNotifications((current) =>
-                          current.map((entry) => (entry.id === item.id ? { ...entry, read: true } : entry)),
-                        );
+                        if (!item.read) markAsRead(item.notificationId);
                         showFeedback(item.title);
                       }}
                     >
