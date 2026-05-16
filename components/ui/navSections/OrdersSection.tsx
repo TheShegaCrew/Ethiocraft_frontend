@@ -1,5 +1,5 @@
 "use client"
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import GenericSection from './GenericSection';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose, DrawerFooter } from '@/components/ui/drawer';
 import { Button } from '@/components/ui/button';
@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { X } from 'lucide-react';
 
 export default function OrdersSection(props: any) {
+  const { overview, overviewLoading } = props;
   const orders = props.orders || [];
   const loading = props.ordersLoading;
   const router = useRouter();
@@ -22,17 +23,16 @@ export default function OrdersSection(props: any) {
       o?.product?.title ??
       o?.customer?.name ??
       o?.customerName ??
-      'Order not available';
+      '—';
     const owner =
       o?.owner ??
       o?.vendor ??
       (o?.artisan ? `${o.artisan.firstName ?? ''} ${o.artisan.lastName ?? ''}`.trim() : undefined) ??
       o?.artisan?.artisanProfile?.shopName ??
-      'Order not available';
-    const status = o?.status ?? o?.orderStatus ?? o?.state ?? 'Order not available';
-    const updatedRaw =
-      o?.updatedAt ?? o?.updated ?? o?.modifiedAt ?? o?.publishedAt ?? o?.createdAt;
-    const updated = updatedRaw ? new Date(updatedRaw).toLocaleString() : 'Order not available';
+      '—';
+    const status = o?.status ?? o?.orderStatus ?? o?.state ?? '—';
+    const updatedRaw = o?.updatedAt ?? o?.updated ?? o?.modifiedAt ?? o?.publishedAt ?? o?.createdAt;
+    const updated = updatedRaw ? new Date(updatedRaw).toLocaleString() : '—';
     return { id, name, owner, status, updated };
   });
 
@@ -40,7 +40,24 @@ export default function OrdersSection(props: any) {
     ? [{ id: '—', name: 'Loading orders…', owner: '—', status: '—', updated: '—' }]
     : rows.length
     ? rows
-    : [{ id: '—', name: 'Order not available', owner: 'Order not available', status: 'Order not available', updated: 'Order not available' }];
+    : [{ id: '—', name: 'No orders available', owner: '—', status: '—', updated: '—' }];
+
+  // Real metrics from overview orders breakdown + globalOrders list
+  const metrics = useMemo(() => {
+    const isLoading = loading || overviewLoading;
+    const orderRows = (overview?.orders || []) as { key: string; count?: number }[];
+    const total = isLoading ? '…' : (orderRows.reduce((s: number, r: any) => s + (Number(r.count) || 0), 0) || orders.length);
+    const inFlight = isLoading ? '…' : orderRows
+      .filter((r) => ['PAID', 'PROCESSING', 'SHIPPED'].includes(r.key))
+      .reduce((s: number, r: any) => s + (Number(r.count) || 0), 0);
+    const delivered = isLoading ? '…' : (orderRows.find((r) => r.key === 'DELIVERED')?.count ?? orders.filter((o: any) => o.status === 'DELIVERED').length);
+
+    return [
+      { label: 'Total Orders', value: String(total), description: 'All orders in selected period' },
+      { label: 'In Fulfillment', value: String(inFlight), description: 'Paid → Processing → Shipped' },
+      { label: 'Delivered', value: String(delivered), description: 'Successfully delivered' },
+    ];
+  }, [overview, overviewLoading, orders, loading]);
 
   const handleViewDetails = (row: any) => {
     setSelectedOrder(row);
@@ -65,6 +82,8 @@ export default function OrdersSection(props: any) {
         showFeedback={props.showFeedback}
         setActiveNav={props.setActiveNav}
         onViewDetails={handleViewDetails}
+        metrics={metrics}
+        isPlaceholder={false}
       />
 
       <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
