@@ -13,6 +13,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import ChatSupport from "@/components/ChatSupport";
 import { toast } from "react-toastify";
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   fetchProductById,
   getArtisanName,
@@ -98,7 +99,6 @@ export default function App() {
   const [mediaMode, setMediaMode] = useState<"image" | "3d">("image");
   const [is3DActivated, setIs3DActivated] = useState(false);
   const [isModelViewerReady, setIsModelViewerReady] = useState(false);
-  const [wishlistMessage, setWishlistMessage] = useState("");
   const isWishlisted = wishlistIds.includes(product.id);
   const [loaded, setLoaded] = useState(false);
   const [revealedSections, setRevealedSections] = useState<string[]>([]);
@@ -171,9 +171,9 @@ export default function App() {
         setProduct(initialEmptyProduct);
         setRelatedProducts([]);
         setReviews([]);
-        setProductFetchError(
-          "Failed to load product detail from backend.",
-        );
+        const msg = error instanceof Error ? error.message : 'Failed to load product detail from backend.'
+        setProductFetchError(msg);
+        toast.error(msg)
       } finally {
         setIsLoadingProduct(false);
       }
@@ -193,11 +193,6 @@ export default function App() {
 
 
 
-  useEffect(() => {
-    if (!wishlistMessage) return;
-    const timeout = setTimeout(() => setWishlistMessage(""), 1800);
-    return () => clearTimeout(timeout);
-  }, [wishlistMessage]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -294,6 +289,7 @@ export default function App() {
           ? error.message
           : "Failed to submit your review.";
       setReviewError(message);
+      toast.error(message);
       setReviewStatus("idle");
     }
   };
@@ -316,9 +312,18 @@ export default function App() {
   };
 
   const handleWishlistToggle = () => {
-    const { added } = toggleWishlist(product.id);
-    setWishlistMessage(added ? "Added to wishlist" : "Removed from wishlist");
-    toast.info(added ? "Added to wishlist" : "Removed from wishlist");
+    const { added, whenDone } = toggleWishlist(product.id) as any;
+    if (whenDone) {
+      whenDone
+        .then(() => {
+          toast.info(added ? "Added to wishlist" : "Removed from wishlist");
+        })
+        .catch(() => {
+          // context already emits error toast
+        });
+    } else {
+      toast.info(added ? "Added to wishlist" : "Removed from wishlist");
+    }
   };
 
   const handleAddToCart = () => {
@@ -376,15 +381,23 @@ export default function App() {
           <span aria-hidden="true">←</span> Back to Collection
         </a>
         {isLoadingProduct && (
-          <p className="font-aeonik mt-4 inline-flex border border-[#ddd8cf] bg-[#f8f6f1] px-3 py-2 text-[10px] uppercase tracking-[0.12em] text-[#5f5b55]">
-            Loading product from backend...
-          </p>
+          <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-12">
+            <div className="lg:col-span-7">
+              <Skeleton className="h-[62vh] min-h-[420px] w-full rounded" />
+              <div className="mt-4 grid grid-cols-3 gap-3">
+                {[0,1,2].map(i => <Skeleton key={i} className="h-24 w-full rounded" />)}
+              </div>
+            </div>
+            <div className="lg:col-span-5">
+              <Skeleton className="h-6 w-1/3 rounded mb-3" />
+              <Skeleton className="h-10 w-3/4 rounded mb-3" />
+              <Skeleton className="h-6 w-1/4 rounded mb-3" />
+              <Skeleton className="h-3 w-full rounded mt-6" />
+              <Skeleton className="h-3 w-5/6 rounded mt-2" />
+            </div>
+          </div>
         )}
-        {productFetchError && (
-          <p className="font-aeonik mt-4 inline-flex border border-[#e0b7b7] bg-[#fff5f5] px-3 py-2 text-[10px] uppercase tracking-[0.12em] text-[#8d3a3a]">
-            {productFetchError}
-          </p>
-        )}
+        {/* errors are shown via react-toastify toasts */}
 
         {/* --- PRODUCT SHOWCASE --- */}
         <section
@@ -452,7 +465,10 @@ export default function App() {
                     })
                   ) : (
                     <div className="flex h-full items-center justify-center text-sm text-[#5a554d]">
-                      Loading 3D experience...
+                      <div className="flex items-center gap-2">
+                        <span className="h-3 w-3 animate-spin rounded-full border-2 border-t-transparent border-[#C6A75E]" />
+                        <span>Loading 3D experience</span>
+                      </div>
                     </div>
                   ))}
               </div>
@@ -494,11 +510,7 @@ export default function App() {
             <p className="mt-5 max-w-[44ch] text-[15px] leading-relaxed text-[#4f4b45]">
               {product.shortDescription}
             </p>
-            {wishlistMessage && (
-              <p className="font-aeonik mt-4 inline-flex border border-[#ddd8cf] bg-[#f8f6f1] px-3 py-2 text-[10px] uppercase tracking-[0.12em] text-[#5f5b55]">
-                {wishlistMessage}
-              </p>
-            )}
+            {/* wishlist messages are shown via react-toastify toasts */}
             <div className="font-aeonik mt-9 flex items-center gap-6">
               <div className="inline-flex items-center border-b border-[#d8d2c8] pb-2 text-sm">
                 <button
@@ -736,11 +748,7 @@ export default function App() {
                   </div>
                 ) : (
                   <form onSubmit={handleSubmitReview} className="space-y-6">
-                    {reviewError && (
-                      <p className="border border-[#e0b7b7] bg-[#fff5f5] px-3 py-2 text-xs text-[#8d3a3a]">
-                        {reviewError}
-                      </p>
-                    )}
+                    {/* review errors are shown via react-toastify toasts */}
                     <div>
                       <p className="font-aeonik text-[10px] uppercase tracking-widest text-[#1C1C1C] mb-3">
                         Your Rating
