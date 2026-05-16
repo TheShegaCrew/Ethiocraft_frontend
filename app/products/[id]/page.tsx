@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
 import { useCart } from "@/lib/cart-context";
-import { getWishlistProductIds, toggleWishlistProduct } from "@/lib/wishlist";
+import { useWishlist } from "@/lib/wishlist-context";
 import { Heart } from "lucide-react";
 import React from "react";
 import { createElement, useEffect, useState } from "react";
@@ -86,7 +86,7 @@ export default function App() {
   const routeProductId = params?.id;
   const { token } = useAuth();
   const { addItem } = useCart();
-  const wishlistUserKey = token ?? "guest";
+  const { wishlistIds, toggleWishlist } = useWishlist();
   const [product, setProduct] = useState<DetailProduct>(initialEmptyProduct);
   const [relatedProducts, setRelatedProducts] = useState<RelatedProduct[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -98,8 +98,8 @@ export default function App() {
   const [mediaMode, setMediaMode] = useState<"image" | "3d">("image");
   const [is3DActivated, setIs3DActivated] = useState(false);
   const [isModelViewerReady, setIsModelViewerReady] = useState(false);
-  const [isWishlisted, setIsWishlisted] = useState(false);
   const [wishlistMessage, setWishlistMessage] = useState("");
+  const isWishlisted = wishlistIds.includes(product.id);
   const [loaded, setLoaded] = useState(false);
   const [revealedSections, setRevealedSections] = useState<string[]>([]);
 
@@ -191,9 +191,7 @@ export default function App() {
     setLoaded(true);
   }, []);
 
-  useEffect(() => {
-    setIsWishlisted(getWishlistProductIds(wishlistUserKey).includes(product.id));
-  }, [wishlistUserKey]);
+
 
   useEffect(() => {
     if (!wishlistMessage) return;
@@ -318,8 +316,7 @@ export default function App() {
   };
 
   const handleWishlistToggle = () => {
-    const { added } = toggleWishlistProduct(wishlistUserKey, product.id);
-    setIsWishlisted(added);
+    const { added } = toggleWishlist(product.id);
     setWishlistMessage(added ? "Added to wishlist" : "Removed from wishlist");
     toast.info(added ? "Added to wishlist" : "Removed from wishlist");
   };
