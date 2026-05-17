@@ -68,7 +68,15 @@ export default function AgentDashboard() {
   ]
 
   const { token, role } = useAuth()
-  const { notifications, unreadCount: unreadNotifications, markAsRead, markAllAsRead, refresh } = useNotifications({ enabled: Boolean(token || role) })
+  const {
+    notifications,
+    unreadCount: unreadNotifications,
+    readCount,
+    markAsRead,
+    markAllAsRead,
+    clearRead,
+    refresh,
+  } = useNotifications({ enabled: Boolean(token || role) })
 
   const headerNotifications = notifications.map((n) => ({
     id: n.id,
@@ -161,6 +169,8 @@ export default function AgentDashboard() {
         unreadNotifications={unreadNotifications}
         markAsRead={markAsRead}
         markAllAsRead={markAllAsRead}
+        clearRead={clearRead}
+        readCount={readCount}
         refresh={refresh}
       />
 

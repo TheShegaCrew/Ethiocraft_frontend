@@ -226,7 +226,15 @@ export default function CustomerDashboard() {
   }
 
   // ── Notifications ─────────────────────────────────────────────────────────
-  const { notifications, unreadCount: unreadNotifications, markAsRead, markAllAsRead, refresh } = useNotifications({ enabled: Boolean(token || role) })
+  const {
+    notifications,
+    unreadCount: unreadNotifications,
+    readCount,
+    markAsRead,
+    markAllAsRead,
+    clearRead,
+    refresh,
+  } = useNotifications({ enabled: Boolean(token || role) })
   const headerNotifications = notifications.map(n => ({ id: n.id, message: n.message, time: new Date(n.createdAt).toLocaleDateString(), unread: !n.isRead }))
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -250,6 +258,8 @@ export default function CustomerDashboard() {
         statusText={''}
         markAsRead={markAsRead}
         markAllAsRead={markAllAsRead}
+        clearRead={clearRead}
+        readCount={readCount}
         refresh={refresh}
       />
 

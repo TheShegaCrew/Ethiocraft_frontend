@@ -78,7 +78,15 @@ export default function CustomerOrderDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  const { notifications, unreadCount: unreadNotifications, markAsRead, markAllAsRead, refresh } = useNotifications({ enabled: Boolean(token || role) });
+  const {
+    notifications,
+    unreadCount: unreadNotifications,
+    readCount,
+    markAsRead,
+    markAllAsRead,
+    clearRead,
+    refresh,
+  } = useNotifications({ enabled: Boolean(token || role) });
   const headerNotifications = notifications.map((n) => ({
     id: n.id,
     message: n.message,
@@ -142,6 +150,8 @@ export default function CustomerOrderDetailPage() {
         unreadNotifications={unreadNotifications}
         markAsRead={markAsRead}
         markAllAsRead={markAllAsRead}
+        clearRead={clearRead}
+        readCount={readCount}
         refresh={refresh}
       />
       <main className="flex-1">

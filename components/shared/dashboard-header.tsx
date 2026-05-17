@@ -40,6 +40,8 @@ type DashboardHeaderProps = {
   unreadNotifications?: number;
   markAsRead?: (id: string | number) => void | Promise<void>;
   markAllAsRead?: () => void | Promise<void>;
+  clearRead?: () => void | Promise<void>;
+  readCount?: number;
   refresh?: () => void | Promise<void>;
 };
 
@@ -49,6 +51,8 @@ export function DashboardHeader({
   statusText = "",
   markAsRead,
   markAllAsRead,
+  clearRead,
+  readCount = 0,
   refresh,
 }: DashboardHeaderProps) {
   const [refreshLoading, setRefreshLoading] = useState(false);
@@ -214,6 +218,15 @@ export function DashboardHeader({
                             className="text-xs text-muted-foreground hover:underline"
                           >
                             Mark all read
+                          </button>
+                        )}
+                        {readCount > 0 && clearRead && (
+                          <button
+                            type="button"
+                            onClick={() => clearRead()}
+                            className="text-xs text-muted-foreground hover:underline"
+                          >
+                            Clear
                           </button>
                         )}
                         {refresh && (
