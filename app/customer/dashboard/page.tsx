@@ -325,9 +325,9 @@ export default function CustomerDashboard() {
 
             {/* Orders Tab */}
             <TabsContent value="orders" className="space-y-4">
-              <div className="flex justify-between items-center mb-4">
+                <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-semibold">Your Orders</h2>
-                <Link href="/customer/orders"><Button variant="outline">View All</Button></Link>
+                <Link href="/customer/dashboard"><Button variant="outline">View All</Button></Link>
               </div>
               <div className="space-y-3">
                 {ordersLoading ? (

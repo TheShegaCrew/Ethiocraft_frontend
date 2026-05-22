@@ -1,99 +1,67 @@
 'use client'
 
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import Link from 'next/link'
-import { MapPin, Phone, CreditCard, CheckCircle, Loader2 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { MapPin, CreditCard, CheckCircle, Loader2, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { paymentService } from '@/lib/payment-service'
 import { useCart } from '@/lib/cart-context'
+import { useAuth } from '@/lib/auth-context'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import { createOrderApi, initializePaymentApi, createUserAddress } from '@/lib/api'
 
-type CheckoutStep = 'shipping' | 'payment' | 'review' | 'confirmation'
-type OrderSummaryData = {
-  subtotal: number
-  shipping: number
-  tax: number
-  total: number
-  items: Array<{ name: string; qty: number; price: number }>
-}
+type CheckoutStep = 'shipping' | 'payment' | 'review'
 
-const checkoutFormSchema = z
-  .object({
-    email: z.string().email('Please enter a valid email'),
-    phone: z
-      .string()
-      .min(7, 'Phone number is required')
-      .regex(/^[+0-9\s-]+$/, 'Please enter a valid phone number'),
-    fullName: z.string().min(2, 'Full name is required'),
-    address: z.string().min(5, 'Address is required'),
-    city: z.string().min(2, 'City is required'),
-    region: z.string().min(2, 'Region is required'),
-    postalCode: z.string().min(2, 'Postal code is required'),
-    shippingMethod: z.enum(['standard', 'express']),
-    paymentMethod: z.enum(['chapa', 'telebirr', 'cod']),
-    cardNumber: z.string().optional(),
-    expiryDate: z.string().optional(),
-    cvv: z.string().optional(),
-    telebirrPhone: z.string().optional(),
-  })
-  .superRefine((values, ctx) => {
-    if (values.paymentMethod === 'chapa') {
-      if (!values.cardNumber || values.cardNumber.trim().length < 12) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['cardNumber'],
-          message: 'Card number is required',
-        })
-      }
-      if (!values.expiryDate || !/^\d{2}\/\d{2}$/.test(values.expiryDate.trim())) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['expiryDate'],
-          message: 'Use MM/YY format',
-        })
-      }
-      if (!values.cvv || !/^\d{3,4}$/.test(values.cvv.trim())) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['cvv'],
-          message: 'Enter a valid CVV',
-        })
-      }
-    }
-
-    if (values.paymentMethod === 'telebirr') {
-      if (!values.telebirrPhone || !/^[+0-9\s-]{7,}$/.test(values.telebirrPhone.trim())) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['telebirrPhone'],
-          message: 'TeleBirr phone number is required',
-        })
-      }
-    }
-  })
+const checkoutFormSchema = z.object({
+  phone: z
+    .string()
+    .min(7, 'Phone number is required')
+    .regex(/^[+0-9\s-]+$/, 'Please enter a valid phone number'),
+  fullName: z.string().min(2, 'Full name is required'),
+  address: z.string().min(5, 'Address is required'),
+  city: z.string().min(2, 'City is required'),
+  region: z.string().min(2, 'Region is required'),
+  postalCode: z.string().optional(),
+  shippingMethod: z.enum(['standard', 'express']),
+})
 
 type CheckoutFormData = z.infer<typeof checkoutFormSchema>
 
 export default function CheckoutPage() {
   const { items: cartItems, cartTotal, clearCart } = useCart()
+  const { role } = useAuth()
+  const router = useRouter()
   const [currentStep, setCurrentStep] = useState<CheckoutStep>('shipping')
   const [isProcessing, setIsProcessing] = useState(false)
-  const [orderNumber, setOrderNumber] = useState<string>('')
   const [paymentError, setPaymentError] = useState<string>('')
-  const [confirmedOrderData, setConfirmedOrderData] = useState<OrderSummaryData | null>(null)
+
+  useEffect(() => {
+    if (!role) {
+      router.push('/auth/login?redirect=/cart/checkout')
+    }
+  }, [role, router])
+
+  if (!role) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <p className="text-muted-foreground mt-4">Redirecting to login...</p>
+      </div>
+    )
+  }
 
   const {
     register,
     watch,
     trigger,
+    getValues,
     formState: { errors },
   } = useForm<CheckoutFormData>({
     resolver: zodResolver(checkoutFormSchema),
     mode: 'onBlur',
     defaultValues: {
-      email: '',
       phone: '',
       fullName: '',
       address: '',
@@ -101,11 +69,6 @@ export default function CheckoutPage() {
       region: 'SNNPR',
       postalCode: '',
       shippingMethod: 'standard',
-      paymentMethod: 'chapa',
-      cardNumber: '',
-      expiryDate: '',
-      cvv: '',
-      telebirrPhone: '',
     },
   })
 
@@ -114,50 +77,27 @@ export default function CheckoutPage() {
     { id: 'shipping', label: 'Shipping', icon: MapPin },
     { id: 'payment', label: 'Payment', icon: CreditCard },
     { id: 'review', label: 'Review', icon: CheckCircle },
-    { id: 'confirmation', label: 'Confirmation', icon: CheckCircle },
   ] as const
 
   const shippingCost = formData.shippingMethod === 'express' ? 750 : 250
   const orderData = useMemo(() => {
     const subtotal = cartTotal
-    const tax = subtotal * 0.15
-    const total = subtotal + shippingCost + tax
+    const total = subtotal + shippingCost
     const items = cartItems.map((item) => ({ name: item.name, qty: item.quantity, price: item.price }))
-
-    return { subtotal, shipping: shippingCost, tax, total, items }
+    return { subtotal, shipping: shippingCost, total, items }
   }, [cartItems, cartTotal, shippingCost])
 
   const isCartEmpty = cartItems.length === 0
-  const summaryData = currentStep === 'confirmation' && confirmedOrderData ? confirmedOrderData : orderData
 
   const handleNext = async () => {
     if (isCartEmpty) return
     if (currentStep === 'shipping') {
-      const isValid = await trigger([
-        'email',
-        'phone',
-        'fullName',
-        'address',
-        'city',
-        'region',
-        'postalCode',
-        'shippingMethod',
-      ])
+      const isValid = await trigger(['phone', 'fullName', 'address', 'city', 'region', 'shippingMethod'])
       if (!isValid) return
       setCurrentStep('payment')
     } else if (currentStep === 'payment') {
-      const paymentFields: Array<keyof CheckoutFormData> = ['paymentMethod']
-      if (formData.paymentMethod === 'chapa') {
-        paymentFields.push('cardNumber', 'expiryDate', 'cvv')
-      }
-      if (formData.paymentMethod === 'telebirr') {
-        paymentFields.push('telebirrPhone')
-      }
-      const isValid = await trigger(paymentFields)
-      if (!isValid) return
       setCurrentStep('review')
     }
-    else if (currentStep === 'review') setCurrentStep('confirmation')
   }
 
   const handlePrev = () => {
@@ -173,8 +113,8 @@ export default function CheckoutPage() {
 
     const isValid = await trigger()
     if (!isValid) {
-      setPaymentError('Please complete all required checkout fields.')
-      if (currentStep !== 'shipping') setCurrentStep('shipping')
+      setPaymentError('Please complete all required fields.')
+      setCurrentStep('shipping')
       return
     }
 
@@ -182,54 +122,45 @@ export default function CheckoutPage() {
     setPaymentError('')
 
     try {
-      // Generate order ID and number
-      const orderId = `order-${Date.now()}`
-      const orderNum = `ORD-${new Date().getFullYear()}-${Math.random().toString(36).substring(7).toUpperCase()}`
-      setOrderNumber(orderNum)
+      const values = getValues()
 
-      // Calculate totals using payment service
-      const totals = paymentService.calculateOrderTotal(orderData.subtotal, shippingCost)
-      const finalizedOrderData: OrderSummaryData = {
-        ...orderData,
-        total: totals.total,
+      // Step 1: Create a shipping address on the backend to get an addressId
+      const savedAddress = await createUserAddress({
+        recipientName: values.fullName,
+        phone: values.phone,
+        region: values.region,
+        city: values.city,
+        line1: values.address,
+        postalCode: values.postalCode || undefined,
+        isDefault: false,
+      })
+
+      // Step 2: Create the real order in the database
+      const orderItems = cartItems.map((item) => ({
+        productId: String(item.id),
+        quantity: item.quantity,
+      }))
+
+      const newOrder = await createOrderApi({
+        addressId: savedAddress.id,
+        items: orderItems,
+      })
+
+      // Step 3: Initialize Chapa payment and get the hosted checkout URL
+      const paymentResponse = await initializePaymentApi(newOrder.id, 'CHAPA')
+
+      if (!paymentResponse.checkoutUrl) {
+        throw new Error('No checkout URL returned from payment provider.')
       }
 
-      // Initialize payment based on selected method
-      if (formData.paymentMethod === 'chapa' || formData.paymentMethod === 'telebirr') {
-        const paymentResponse = await paymentService.initializePayment({
-          orderId,
-          amount: totals.total,
-          currency: 'ETB',
-          provider: formData.paymentMethod as 'chapa' | 'telebirr',
-          customerEmail: formData.email,
-          customerName: formData.fullName,
-          customerPhone: formData.phone,
-          description: `Order ${orderNum} - ${orderData.items.length} items`,
-          returnUrl: `${window.location.origin}/checkout?step=confirmation&order=${orderNum}`,
-        })
-
-        if (paymentResponse.success) {
-          // In a real app, redirect to payment gateway
-          if (paymentResponse.redirectUrl) {
-            console.log('[v0] Redirecting to payment gateway:', paymentResponse.redirectUrl)
-            // window.location.href = paymentResponse.redirectUrl
-          }
-          // For demo, move to confirmation
-          setConfirmedOrderData(finalizedOrderData)
-          setCurrentStep('confirmation')
-          clearCart()
-        } else {
-          setPaymentError(paymentResponse.errorMessage || 'Payment initialization failed')
-        }
-      } else if (formData.paymentMethod === 'cod') {
-        // Cash on delivery - skip payment processing
-        setConfirmedOrderData(finalizedOrderData)
-        setCurrentStep('confirmation')
-        clearCart()
-      }
-    } catch (error) {
-      console.error('[v0] Payment error:', error)
-      setPaymentError('An error occurred while processing your payment')
+      // Step 4: Clear local cart and redirect to Chapa's secure hosted payment page
+      await clearCart()
+      window.location.href = paymentResponse.checkoutUrl
+    } catch (error: any) {
+      console.error('[Checkout] Error:', error)
+      setPaymentError(
+        error?.message || 'An error occurred while placing your order. Please try again.'
+      )
     } finally {
       setIsProcessing(false)
     }
@@ -257,7 +188,7 @@ export default function CheckoutPage() {
               return (
                 <div key={step.id} className="flex items-center flex-1">
                   <div
-                    className={`flex items-center justify-center w-10 h-10 rounded-full font-bold text-sm ${
+                    className={`flex items-center justify-center w-10 h-10 rounded-full font-bold text-sm transition-colors ${
                       isCompleted || isCurrent
                         ? 'bg-primary text-primary-foreground'
                         : 'bg-muted text-muted-foreground'
@@ -274,7 +205,7 @@ export default function CheckoutPage() {
                   </span>
                   {idx < steps.length - 1 && (
                     <div
-                      className={`flex-1 mx-4 h-1 rounded-full ${
+                      className={`flex-1 mx-4 h-1 rounded-full transition-colors ${
                         isCompleted ? 'bg-primary' : 'bg-muted'
                       }`}
                     />
@@ -289,38 +220,32 @@ export default function CheckoutPage() {
       {/* Main Content */}
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-          {/* Left Panel: Form (66%) */}
+          {/* Left Panel: Form */}
           <div className="lg:col-span-2">
             {/* Step 1: Shipping */}
             {currentStep === 'shipping' && (
               <div className="bg-card border border-border rounded-lg p-6">
-                <h2 className="text-2xl font-serif font-bold text-foreground mb-6">Shipping Information</h2>
+                <h2 className="text-2xl font-serif font-bold text-foreground mb-6">
+                  Shipping Information
+                </h2>
 
                 <div className="space-y-6">
                   {/* Contact Section */}
                   <div className="border-b border-border pb-6">
                     <h3 className="font-medium text-foreground mb-4">Contact Details</h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-foreground mb-2">Email</label>
-                        <input
-                          type="email"
-                          {...register('email')}
-                          placeholder="you@example.com"
-                          className="w-full px-4 py-2 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                        />
-                        {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email.message}</p>}
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-foreground mb-2">Phone</label>
-                        <input
-                          type="tel"
-                          {...register('phone')}
-                          placeholder="+251 900 123 456"
-                          className="w-full px-4 py-2 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                        />
-                        {errors.phone && <p className="mt-1 text-xs text-red-600">{errors.phone.message}</p>}
-                      </div>
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-2">
+                        Phone Number
+                      </label>
+                      <input
+                        type="tel"
+                        {...register('phone')}
+                        placeholder="+251 900 123 456"
+                        className="w-full px-4 py-2 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                      {errors.phone && (
+                        <p className="mt-1 text-xs text-red-600">{errors.phone.message}</p>
+                      )}
                     </div>
                   </div>
 
@@ -329,55 +254,72 @@ export default function CheckoutPage() {
                     <h3 className="font-medium text-foreground mb-4">Delivery Address</h3>
                     <div className="space-y-4">
                       <div>
-                        <label className="block text-sm font-medium text-foreground mb-2">Full Name</label>
+                        <label className="block text-sm font-medium text-foreground mb-2">
+                          Full Name
+                        </label>
                         <input
                           type="text"
                           {...register('fullName')}
-                          placeholder="John Doe"
+                          placeholder="Abebe Bekele"
                           className="w-full px-4 py-2 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                         />
-                        {errors.fullName && <p className="mt-1 text-xs text-red-600">{errors.fullName.message}</p>}
+                        {errors.fullName && (
+                          <p className="mt-1 text-xs text-red-600">{errors.fullName.message}</p>
+                        )}
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-foreground mb-2">Street Address</label>
+                        <label className="block text-sm font-medium text-foreground mb-2">
+                          Street Address / Kebele
+                        </label>
                         <input
                           type="text"
                           {...register('address')}
-                          placeholder="123 Main Street"
+                          placeholder="Kebele 04, House No. 12"
                           className="w-full px-4 py-2 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                         />
-                        {errors.address && <p className="mt-1 text-xs text-red-600">{errors.address.message}</p>}
+                        {errors.address && (
+                          <p className="mt-1 text-xs text-red-600">{errors.address.message}</p>
+                        )}
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
-                          <label className="block text-sm font-medium text-foreground mb-2">Region</label>
+                          <label className="block text-sm font-medium text-foreground mb-2">
+                            Region
+                          </label>
                           <input
                             type="text"
                             {...register('region')}
                             placeholder="SNNPR"
                             className="w-full px-4 py-2 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                           />
-                          {errors.region && <p className="mt-1 text-xs text-red-600">{errors.region.message}</p>}
+                          {errors.region && (
+                            <p className="mt-1 text-xs text-red-600">{errors.region.message}</p>
+                          )}
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-foreground mb-2">City</label>
+                          <label className="block text-sm font-medium text-foreground mb-2">
+                            City
+                          </label>
                           <input
                             type="text"
                             {...register('city')}
                             placeholder="Hawassa"
                             className="w-full px-4 py-2 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                           />
-                          {errors.city && <p className="mt-1 text-xs text-red-600">{errors.city.message}</p>}
+                          {errors.city && (
+                            <p className="mt-1 text-xs text-red-600">{errors.city.message}</p>
+                          )}
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-foreground mb-2">Postal Code</label>
+                          <label className="block text-sm font-medium text-foreground mb-2">
+                            Postal Code (optional)
+                          </label>
                           <input
                             type="text"
                             {...register('postalCode')}
                             placeholder="1000"
                             className="w-full px-4 py-2 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                           />
-                          {errors.postalCode && <p className="mt-1 text-xs text-red-600">{errors.postalCode.message}</p>}
                         </div>
                       </div>
                     </div>
@@ -391,18 +333,24 @@ export default function CheckoutPage() {
                         { id: 'standard', label: 'Standard Delivery (3-5 days)', price: 250 },
                         { id: 'express', label: 'Express Delivery (1-2 days)', price: 750 },
                       ].map((method) => (
-                        <label key={method.id} className="flex items-center p-4 border border-border rounded-lg cursor-pointer hover:bg-muted/50">
+                        <label
+                          key={method.id}
+                          className="flex items-center p-4 border border-border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
+                          style={{
+                            borderColor:
+                              formData.shippingMethod === method.id ? 'var(--primary)' : '',
+                          }}
+                        >
                           <input
                             type="radio"
                             {...register('shippingMethod')}
                             value={method.id}
-                            checked={formData.shippingMethod === method.id}
                             className="w-4 h-4 text-primary"
                           />
                           <div className="ml-4 grow">
                             <p className="font-medium text-foreground">{method.label}</p>
                           </div>
-                          <span className="text-primary font-medium">ETB {method.price}</span>
+                          <span className="text-primary font-semibold">ETB {method.price}</span>
                         </label>
                       ))}
                     </div>
@@ -417,8 +365,12 @@ export default function CheckoutPage() {
                   Continue to Payment
                 </Button>
                 {isCartEmpty && (
-                  <p className="mt-3 text-sm text-muted-foreground">
-                    Your cart is empty. <Link href="/products" className="text-primary underline">Browse products</Link> to continue.
+                  <p className="mt-3 text-sm text-muted-foreground text-center">
+                    Your cart is empty.{' '}
+                    <Link href="/products" className="text-primary underline">
+                      Browse products
+                    </Link>{' '}
+                    to continue.
                   </p>
                 )}
               </div>
@@ -427,84 +379,34 @@ export default function CheckoutPage() {
             {/* Step 2: Payment */}
             {currentStep === 'payment' && (
               <div className="bg-card border border-border rounded-lg p-6">
-                <h2 className="text-2xl font-serif font-bold text-foreground mb-6">Payment Method</h2>
+                <h2 className="text-2xl font-serif font-bold text-foreground mb-2">Payment</h2>
+                <p className="text-sm text-muted-foreground mb-6">
+                  You will be securely redirected to Chapa to complete your payment.
+                </p>
 
-                <div className="space-y-4 mb-8">
-                  {[
-                    { id: 'chapa', label: 'Chapa (Card Payment)', icon: CreditCard },
-                    { id: 'telebirr', label: 'TeleBirr (Mobile Payment)', icon: Phone },
-                    { id: 'cod', label: 'Cash on Delivery', icon: MapPin },
-                  ].map((method) => (
-                    <label key={method.id} className="flex items-center p-4 border-2 border-border rounded-lg cursor-pointer hover:bg-muted/50" style={{borderColor: formData.paymentMethod === method.id ? 'var(--primary)' : 'var(--border)'}}>
-                      <input
-                        type="radio"
-                            {...register('paymentMethod')}
-                        value={method.id}
-                        checked={formData.paymentMethod === method.id}
-                        className="w-4 h-4 text-primary"
-                      />
-                      <method.icon className="w-5 h-5 ml-3 text-primary" />
-                      <span className="ml-2 font-medium text-foreground">{method.label}</span>
-                    </label>
-                  ))}
+                {/* Chapa Info Card */}
+                <div className="rounded-xl border-2 border-primary bg-primary/5 p-6 mb-6">
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground font-black text-lg">
+                      C
+                    </div>
+                    <div>
+                      <p className="font-bold text-foreground">
+                        Chapa — Secure Hosted Payment
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Cards, bank transfers &amp; mobile money
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2 text-sm text-muted-foreground">
+                    <ShieldCheck className="w-4 h-4 text-green-600 mt-0.5 shrink-0" />
+                    <span>
+                      Your payment details are entered directly on Chapa&apos;s secure page.
+                      EthioCraft never sees your card information.
+                    </span>
+                  </div>
                 </div>
-                {errors.paymentMethod && (
-                  <p className="mb-4 text-xs text-red-600">{errors.paymentMethod.message}</p>
-                )}
-
-                {formData.paymentMethod === 'chapa' && (
-                  <div className="bg-muted/50 rounded-lg p-6 mb-8 space-y-4">
-                    <p className="text-sm text-foreground font-medium">Card Details</p>
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-2">Card Number</label>
-                      <input
-                        type="text"
-                        {...register('cardNumber')}
-                        placeholder="1234 5678 9012 3456"
-                        className="w-full px-4 py-2 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
-                      {errors.cardNumber && <p className="mt-1 text-xs text-red-600">{errors.cardNumber.message}</p>}
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-foreground mb-2">Expiry Date</label>
-                        <input
-                          type="text"
-                          {...register('expiryDate')}
-                          placeholder="MM/YY"
-                          className="w-full px-4 py-2 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                        />
-                        {errors.expiryDate && <p className="mt-1 text-xs text-red-600">{errors.expiryDate.message}</p>}
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-foreground mb-2">CVV</label>
-                        <input
-                          type="text"
-                          {...register('cvv')}
-                          placeholder="123"
-                          className="w-full px-4 py-2 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                        />
-                        {errors.cvv && <p className="mt-1 text-xs text-red-600">{errors.cvv.message}</p>}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {formData.paymentMethod === 'telebirr' && (
-                  <div className="bg-muted/50 rounded-lg p-6 mb-8">
-                    <p className="text-sm text-foreground mb-4">You will receive a TeleBirr prompt on your registered phone number</p>
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-2">Phone Number</label>
-                      <input
-                        type="tel"
-                        {...register('telebirrPhone')}
-                        placeholder="+251 900 123 456"
-                        className="w-full px-4 py-2 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
-                      {errors.telebirrPhone && <p className="mt-1 text-xs text-red-600">{errors.telebirrPhone.message}</p>}
-                    </div>
-                  </div>
-                )}
 
                 <div className="flex gap-4">
                   <Button
@@ -528,16 +430,25 @@ export default function CheckoutPage() {
             {/* Step 3: Review */}
             {currentStep === 'review' && (
               <div className="bg-card border border-border rounded-lg p-6 space-y-6">
-                <h2 className="text-2xl font-serif font-bold text-foreground">Review Order</h2>
+                <h2 className="text-2xl font-serif font-bold text-foreground">
+                  Review Your Order
+                </h2>
 
                 {/* Items */}
                 <div className="border-b border-border pb-6">
-                  <h3 className="font-medium text-foreground mb-4">Order Items</h3>
+                  <h3 className="font-medium text-foreground mb-4">
+                    Order Items ({cartItems.length})
+                  </h3>
                   <div className="space-y-2">
                     {orderData.items.map((item, idx) => (
                       <div key={idx} className="flex justify-between text-sm">
-                        <span className="text-foreground">{item.name} x {item.qty}</span>
-                        <span className="text-foreground font-medium">ETB {(item.price * item.qty).toLocaleString()}</span>
+                        <span className="text-foreground">
+                          {item.name}{' '}
+                          <span className="text-muted-foreground">× {item.qty}</span>
+                        </span>
+                        <span className="text-foreground font-medium">
+                          ETB {(item.price * item.qty).toLocaleString()}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -545,24 +456,48 @@ export default function CheckoutPage() {
 
                 {/* Shipping Address */}
                 <div className="border-b border-border pb-6">
-                  <h3 className="font-medium text-foreground mb-4">Shipping Address</h3>
-                  <div className="text-sm text-muted-foreground">
-                    <p>{formData.fullName}</p>
+                  <h3 className="font-medium text-foreground mb-3">Shipping Address</h3>
+                  <div className="text-sm text-muted-foreground space-y-1">
+                    <p className="font-medium text-foreground">{formData.fullName}</p>
                     <p>{formData.address}</p>
-                    <p>{formData.city}, {formData.region} {formData.postalCode}</p>
+                    <p>
+                      {formData.city}, {formData.region} {formData.postalCode}
+                    </p>
+                    <p>{formData.phone}</p>
                   </div>
-                  <Button onClick={() => setCurrentStep('shipping')} variant="outline" className="mt-4 border-border text-sm">Edit</Button>
+                  <Button
+                    onClick={() => setCurrentStep('shipping')}
+                    variant="outline"
+                    className="mt-3 border-border text-xs h-8 px-3"
+                  >
+                    Edit
+                  </Button>
                 </div>
 
                 {/* Payment Method */}
                 <div className="border-b border-border pb-6">
-                  <h3 className="font-medium text-foreground mb-4">Payment Method</h3>
-                  <p className="text-sm text-muted-foreground capitalize">{formData.paymentMethod}</p>
-                  <Button onClick={() => setCurrentStep('payment')} variant="outline" className="mt-4 border-border text-sm">Edit</Button>
+                  <h3 className="font-medium text-foreground mb-3">Payment</h3>
+                  <div className="flex items-center gap-3 text-sm">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-black text-sm">
+                      C
+                    </div>
+                    <span className="font-medium text-foreground">Chapa Hosted Payment</span>
+                    <ShieldCheck className="w-4 h-4 text-green-600 ml-auto" />
+                  </div>
+                </div>
+
+                {/* Delivery estimate */}
+                <div className="border-b border-border pb-6">
+                  <h3 className="font-medium text-foreground mb-3">Delivery</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {formData.shippingMethod === 'express'
+                      ? 'Express Delivery — Estimated 1-2 business days'
+                      : 'Standard Delivery — Estimated 3-5 business days'}
+                  </p>
                 </div>
 
                 {paymentError && (
-                  <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
                     <p className="text-sm text-red-800">{paymentError}</p>
                   </div>
                 )}
@@ -584,82 +519,72 @@ export default function CheckoutPage() {
                     {isProcessing ? (
                       <>
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Processing...
+                        Creating Order...
                       </>
                     ) : (
-                      'Place Order'
+                      <>
+                        <ShieldCheck className="w-4 h-4 mr-2" />
+                        Pay with Chapa
+                      </>
                     )}
                   </Button>
                 </div>
-              </div>
-            )}
 
-            {/* Step 4: Confirmation */}
-            {currentStep === 'confirmation' && (
-              <div className="bg-card border border-border rounded-lg p-6 text-center">
-                <div className="mb-6">
-                  <CheckCircle className="w-16 h-16 text-success mx-auto mb-4" />
-                  <h2 className="text-2xl font-serif font-bold text-foreground">Order Confirmed!</h2>
-                  <p className="text-muted-foreground mt-2">Thank you for your purchase</p>
-                </div>
-
-                <div className="bg-muted/50 rounded-lg p-4 mb-6">
-                  <p className="text-sm text-muted-foreground mb-1">Order Number</p>
-                  <p className="text-2xl font-bold text-primary font-mono">#{orderNumber}</p>
-                </div>
-
-                <p className="text-sm text-muted-foreground mb-6">
-                  A confirmation email has been sent to {formData.email}
+                <p className="text-xs text-center text-muted-foreground">
+                  By placing this order you agree to EthioCraft&apos;s terms. You will be
+                  redirected to Chapa&apos;s secure page to complete payment.
                 </p>
-
-                <div className="flex flex-col gap-3">
-                  <Button asChild className="bg-primary text-primary-foreground hover:bg-primary/90 h-12 font-medium">
-                    <Link href={`/orders/${orderNumber}`}>
-                    Track Your Order
-                    </Link>
-                  </Button>
-                  <Button asChild variant="outline" className="border-border h-12 font-medium">
-                    <Link href="/products">
-                    Continue Shopping
-                    </Link>
-                  </Button>
-                </div>
               </div>
             )}
           </div>
 
-          {/* Right Panel: Order Summary (34% - Sticky) */}
+          {/* Right Panel: Order Summary (Sticky) */}
           <div className="lg:col-span-1">
             <div className="sticky top-20 bg-card border border-border rounded-lg p-6 space-y-6">
               <h3 className="text-lg font-serif font-bold text-foreground">Order Summary</h3>
 
               <div className="space-y-3 pb-6 border-b border-border max-h-64 overflow-y-auto">
-                {summaryData.items.map((item, idx) => (
-                  <div key={idx} className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">{item.name}</span>
-                    <span className="text-foreground font-medium">ETB {(item.price * item.qty).toLocaleString()}</span>
+                {orderData.items.map((item, idx) => (
+                  <div key={idx} className="flex justify-between text-sm gap-2">
+                    <span className="text-muted-foreground truncate">
+                      {item.name} ×{item.qty}
+                    </span>
+                    <span className="text-foreground font-medium shrink-0">
+                      ETB {(item.price * item.qty).toLocaleString()}
+                    </span>
                   </div>
                 ))}
+                {isCartEmpty && (
+                  <p className="text-sm text-muted-foreground italic">No items in cart.</p>
+                )}
               </div>
 
               <div className="space-y-3 pb-6 border-b border-border">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Subtotal</span>
-                  <span className="text-foreground font-medium">ETB {summaryData.subtotal.toLocaleString()}</span>
+                  <span className="text-foreground font-medium">
+                    ETB {orderData.subtotal.toLocaleString()}
+                  </span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Shipping</span>
-                  <span className="text-foreground font-medium">{summaryData.shipping === 0 ? 'Free' : `ETB ${summaryData.shipping}`}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Tax</span>
-                  <span className="text-foreground font-medium">ETB {summaryData.tax.toLocaleString()}</span>
+                  <span className="text-foreground font-medium">
+                    ETB {orderData.shipping.toLocaleString()}
+                  </span>
                 </div>
               </div>
 
               <div className="flex justify-between items-baseline">
                 <span className="text-foreground font-medium">Total</span>
-                <span className="text-2xl font-bold text-primary">ETB {summaryData.total.toLocaleString()}</span>
+                <span className="text-2xl font-bold text-primary">
+                  ETB {orderData.total.toLocaleString()}
+                </span>
+              </div>
+
+              {/* Security badge */}
+              <div className="flex items-center gap-2 pt-2 text-xs text-muted-foreground border-t border-border">
+                <ShieldCheck className="w-4 h-4 text-green-600 shrink-0" />
+                <span>Secured by Chapa. Your payment is encrypted and safe.</span>
               </div>
             </div>
           </div>

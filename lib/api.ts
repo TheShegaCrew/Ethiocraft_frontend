@@ -1085,3 +1085,45 @@ export async function submitArtisanDraft(
   return json.data as ApiArtisanDraft;
 }
 
+// ─── Order Creation & Payment API ───────────────────────────────────────────
+
+export type CreateOrderPayload = {
+  addressId: string;
+  items: { productId: string; quantity: number }[];
+  notes?: string;
+};
+
+export async function createOrderApi(payload: CreateOrderPayload): Promise<ApiOrder> {
+  const res = await apiFetch("/orders", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.message || `Failed to create order: ${res.status}`);
+  }
+  const json = await res.json();
+  return json.data as ApiOrder;
+}
+
+export type InitializePaymentResponse = {
+  payment: any;
+  checkoutUrl: string;
+  instructions: string;
+};
+
+export async function initializePaymentApi(orderId: string, provider: "CHAPA" | "TELEBIRR" | "SIMULATION"): Promise<InitializePaymentResponse> {
+  const res = await apiFetch("/payments/initialize", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ orderId, provider }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.message || `Failed to initialize payment: ${res.status}`);
+  }
+  const json = await res.json();
+  return json.data as InitializePaymentResponse;
+}
+
