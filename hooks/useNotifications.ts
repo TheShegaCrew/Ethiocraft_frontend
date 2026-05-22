@@ -1,7 +1,12 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { fetchNotifications, markNotificationAsRead, ApiNotification } from "@/lib/api";
+import {
+  fetchNotifications,
+  markNotificationAsRead,
+  clearReadNotifications,
+  ApiNotification,
+} from "@/lib/api";
 
 type UseNotificationsOptions = {
   pollIntervalMs?: number; // Default 30000 (30 seconds)
@@ -73,13 +78,33 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
     }
   };
 
+  const readCount = notifications.filter((n) => n.isRead).length;
+
+  const clearRead = async () => {
+    if (readCount === 0) return;
+
+    const previous = notifications;
+    setNotifications((prev) => prev.filter((n) => !n.isRead));
+
+    try {
+      await clearReadNotifications();
+      setError(null);
+    } catch (err: unknown) {
+      setNotifications(previous);
+      setError(err instanceof Error ? err.message : "Failed to clear read notifications");
+      loadNotifications();
+    }
+  };
+
   return {
     notifications,
     unreadCount,
+    readCount,
     loading,
     error,
     markAsRead,
     markAllAsRead,
+    clearRead,
     refresh: loadNotifications,
   };
 }

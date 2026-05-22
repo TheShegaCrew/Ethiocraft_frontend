@@ -504,6 +504,25 @@ export async function markNotificationAsRead(id: string): Promise<ApiNotificatio
   return json.data as ApiNotification;
 }
 
+/** Remove all read notifications for the authenticated user. */
+export async function clearReadNotifications(): Promise<{ deletedCount: number }> {
+  const res = await apiFetch("/notifications/read", {
+    method: "DELETE",
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(
+      typeof err?.message === "string"
+        ? err.message
+        : `Failed to clear read notifications: ${res.status}`,
+    );
+  }
+
+  const json = await res.json();
+  return (json.data ?? { deletedCount: 0 }) as { deletedCount: number };
+}
+
 /** Admin: send a manual notification to a specific user (admin-only). */
 export async function sendAdminNotification(userId: string, payload: { title: string; message: string; type?: string }) {
   const res = await apiFetch(`/admin/users/${userId}/notify`, {
@@ -645,5 +664,424 @@ export async function toggleWishlistApi(productId: string): Promise<{ action: "a
   }
   const json = await res.json();
   return json.data as { action: "added" | "removed" };
+}
+
+// ─── User Profile API ────────────────────────────────────────────────────────
+
+export type ApiUserArtisanProfile = {
+  shopName: string;
+  bio?: string | null;
+  region?: string | null;
+  city?: string | null;
+  extensionData?: {
+    bankName?: string;
+    accountNumber?: string;
+    accountHolderName?: string;
+    [key: string]: unknown;
+  } | null;
+  artisanBankDetail?: {
+    bankName?: string;
+    accountNumber?: string;
+    accountHolderName?: string;
+    branch?: string | null;
+    accountType?: string | null;
+    currency?: string | null;
+    verifiedAt?: string | null;
+  } | null;
+};
+
+export type ApiUserProfile = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string | null;
+  role: string;
+  avatarUrl: string | null;
+  status: string;
+  createdAt: string;
+  artisanProfile?: ApiUserArtisanProfile | null;
+};
+
+export type UpdateProfilePayload = {
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  avatarUrl?: string;
+  artisanProfile?: {
+    shopName?: string;
+    bio?: string;
+    region?: string;
+    city?: string;
+    extensionData?: Record<string, unknown>;
+  };
+  artisanBankDetail?: {
+    bankName?: string;
+    accountNumber?: string;
+    accountHolderName?: string;
+    branch?: string;
+    accountType?: string;
+    currency?: string;
+  };
+};
+
+/** Fetch the authenticated user's profile. */
+export async function fetchUserProfile(): Promise<ApiUserProfile> {
+  const res = await apiFetch("/users/me", { cache: "no-store" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.message || `Failed to fetch profile: ${res.status}`);
+  }
+  const json = await res.json();
+  return json.data as ApiUserProfile;
+}
+
+/** Update the authenticated user's profile. */
+export async function updateUserProfile(payload: UpdateProfilePayload): Promise<ApiUserProfile> {
+  const res = await apiFetch("/users/me", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.message || `Failed to update profile: ${res.status}`);
+  }
+  const json = await res.json();
+  return json.data as ApiUserProfile;
+}
+
+// ─── Address API ─────────────────────────────────────────────────────────────
+
+export type ApiAddress = {
+  id: string;
+  label: string | null;
+  recipientName: string;
+  phone: string;
+  region: string;
+  city: string;
+  subCity: string | null;
+  woreda: string | null;
+  kebele: string | null;
+  line1: string;
+  line2: string | null;
+  postalCode: string | null;
+  isDefault: boolean;
+};
+
+export type AddressPayload = {
+  label?: string;
+  recipientName: string;
+  phone: string;
+  region: string;
+  city: string;
+  subCity?: string;
+  woreda?: string;
+  kebele?: string;
+  line1: string;
+  line2?: string;
+  postalCode?: string;
+  isDefault?: boolean;
+};
+
+/** Fetch all saved addresses for the authenticated user. */
+export async function fetchUserAddresses(): Promise<ApiAddress[]> {
+  const res = await apiFetch("/users/me/addresses", { cache: "no-store" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.message || `Failed to fetch addresses: ${res.status}`);
+  }
+  const json = await res.json();
+  return json.data as ApiAddress[];
+}
+
+/** Create a new address for the authenticated user. */
+export async function createUserAddress(payload: AddressPayload): Promise<ApiAddress> {
+  const res = await apiFetch("/users/me/addresses", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.message || `Failed to create address: ${res.status}`);
+  }
+  const json = await res.json();
+  return json.data as ApiAddress;
+}
+
+/** Update an existing address by ID. */
+export async function updateUserAddress(
+  addressId: string,
+  payload: Partial<AddressPayload>
+): Promise<ApiAddress> {
+  const res = await apiFetch(`/users/me/addresses/${addressId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.message || `Failed to update address: ${res.status}`);
+  }
+  const json = await res.json();
+  return json.data as ApiAddress;
+}
+
+/** Delete an address by ID. */
+export async function deleteUserAddress(addressId: string): Promise<void> {
+  const res = await apiFetch(`/users/me/addresses/${addressId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.message || `Failed to delete address: ${res.status}`);
+  }
+}
+
+// ─── Artisan product workflow ────────────────────────────────────────────────
+
+export type ApiArtisanSample = {
+  id: string;
+  title: string;
+  description: string;
+  category?: string | null;
+  price?: number | string | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  media: ApiMedia[];
+};
+
+export type ApiArtisanDraft = {
+  id: string;
+  title: string;
+  description: string;
+  category?: string | null;
+  price?: number | string | null;
+  stock?: number | null;
+  status: string;
+  verificationNotes?: string | null;
+  submissionNotes?: string | null;
+  submittedAt?: string | null;
+  reviewedAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+  media: ApiMedia[];
+  sampleId?: string | null;
+};
+
+export type ArtisanSamplePayload = {
+  title: string;
+  description: string;
+  category: string;
+  price?: number;
+  stock?: number;
+  materials?: string[];
+  tags?: string[];
+};
+
+function formatApiError(err: Record<string, unknown>, fallback: string): string {
+  const details = err.details;
+  if (Array.isArray(details) && details.length > 0) {
+    const parts = details.map((d: { path?: string; message?: string }) =>
+      d.path ? `${d.path}: ${d.message}` : d.message
+    );
+    return parts.filter(Boolean).join("; ") || fallback;
+  }
+  return typeof err.message === "string" ? err.message : fallback;
+}
+
+const API_ORIGIN = API_BASE_URL.replace(/\/api\/v1\/?$/, "");
+
+/** Resolve relative upload paths or pass through Cloudinary HTTPS URLs. */
+export function resolveMediaUrl(url?: string | null, fallback = "/placeholder.svg?height=150&width=150"): string {
+  if (!url) return fallback;
+  if (/^https?:\/\//i.test(url)) return url;
+  return url.startsWith("/") ? `${API_ORIGIN}${url}` : `${API_ORIGIN}/${url}`;
+}
+
+export async function fetchArtisanSamples(): Promise<ApiArtisanSample[]> {
+  const res = await apiFetch("/artisan/products/samples", { cache: "no-store" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.message || `Failed to fetch samples: ${res.status}`);
+  }
+  const json = await res.json();
+  return (json.data ?? []) as ApiArtisanSample[];
+}
+
+export async function createArtisanSample(payload: ArtisanSamplePayload): Promise<string> {
+  const res = await apiFetch("/artisan/products/samples", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(formatApiError(err, `Failed to create sample: ${res.status}`));
+  }
+  const json = await res.json();
+  const data = json.data ?? json;
+  return data.sampleId ?? data.id;
+}
+
+export async function uploadArtisanSampleImages(sampleId: string, files: File[]): Promise<void> {
+  const formData = new FormData();
+  files.forEach((file) => formData.append("images", file));
+  const res = await apiFetch(`/artisan/products/samples/${sampleId}/images`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(formatApiError(err, `Failed to upload sample images: ${res.status}`));
+  }
+}
+
+export async function fetchArtisanDrafts(status?: string): Promise<ApiArtisanDraft[]> {
+  const path = status ? `/artisan/products/drafts?status=${encodeURIComponent(status)}` : "/artisan/products/drafts";
+  const res = await apiFetch(path, { cache: "no-store" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.message || `Failed to fetch drafts: ${res.status}`);
+  }
+  const json = await res.json();
+  return (json.data ?? []) as ApiArtisanDraft[];
+}
+
+export async function fetchArtisanPublishedProducts(
+  status?: "APPROVED" | "PUBLISHED" | "ALL"
+): Promise<ApiProductSummary[]> {
+  const path = status
+    ? `/artisan/products/published?status=${encodeURIComponent(status)}`
+    : "/artisan/products/published";
+  const res = await apiFetch(path, { cache: "no-store" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.message || `Failed to fetch products: ${res.status}`);
+  }
+  const json = await res.json();
+  return (json.data ?? []) as ApiProductSummary[];
+}
+
+export async function fetchArtisanSample(sampleId: string): Promise<ApiArtisanSample> {
+  const res = await apiFetch(`/artisan/products/samples/${sampleId}`, { cache: "no-store" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.message || `Failed to fetch sample: ${res.status}`);
+  }
+  const json = await res.json();
+  return json.data as ApiArtisanSample;
+}
+
+export async function updateArtisanSample(
+  sampleId: string,
+  payload: Partial<ArtisanSamplePayload>,
+): Promise<ApiArtisanSample> {
+  const res = await apiFetch(`/artisan/products/samples/${sampleId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(formatApiError(err, `Failed to update sample: ${res.status}`));
+  }
+  const json = await res.json();
+  return json.data as ApiArtisanSample;
+}
+
+export async function resubmitArtisanSample(sampleId: string): Promise<ApiArtisanSample> {
+  const res = await apiFetch(`/artisan/products/samples/${sampleId}/resubmit`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(formatApiError(err, `Failed to resubmit sample: ${res.status}`));
+  }
+  const json = await res.json();
+  return json.data as ApiArtisanSample;
+}
+
+export async function deleteArtisanSample(sampleId: string): Promise<{ deletedId: string }> {
+  const res = await apiFetch(`/artisan/products/samples/${sampleId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(formatApiError(err, `Failed to delete sample: ${res.status}`));
+  }
+  const json = await res.json();
+  return (json.data ?? { deletedId: sampleId }) as { deletedId: string };
+}
+
+export type ArtisanDraftPayload = {
+  title?: string;
+  description?: string;
+  category?: string;
+  price?: number;
+  stock?: number;
+  materials?: string[];
+  tags?: string[];
+};
+
+export async function fetchArtisanDraft(draftId: string): Promise<ApiArtisanDraft> {
+  const res = await apiFetch(`/artisan/products/drafts/${draftId}`, { cache: "no-store" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.message || `Failed to fetch draft: ${res.status}`);
+  }
+  const json = await res.json();
+  return json.data as ApiArtisanDraft;
+}
+
+export async function updateArtisanDraft(
+  draftId: string,
+  payload: ArtisanDraftPayload,
+): Promise<ApiArtisanDraft> {
+  const res = await apiFetch(`/artisan/products/drafts/${draftId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(formatApiError(err, `Failed to update draft: ${res.status}`));
+  }
+  const json = await res.json();
+  return json.data as ApiArtisanDraft;
+}
+
+export async function uploadArtisanDraftImages(draftId: string, files: File[]): Promise<ApiArtisanDraft> {
+  const formData = new FormData();
+  files.forEach((file) => formData.append("images", file));
+  const res = await apiFetch(`/artisan/products/drafts/${draftId}/images`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(formatApiError(err, `Failed to upload draft images: ${res.status}`));
+  }
+  const json = await res.json();
+  return json.data as ApiArtisanDraft;
+}
+
+export async function submitArtisanDraft(
+  draftId: string,
+  submissionNotes?: string,
+): Promise<ApiArtisanDraft> {
+  const res = await apiFetch(`/artisan/products/drafts/${draftId}/submit`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(submissionNotes ? { submissionNotes } : {}),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(formatApiError(err, `Failed to submit draft: ${res.status}`));
+  }
+  const json = await res.json();
+  return json.data as ApiArtisanDraft;
 }
 

@@ -7,7 +7,7 @@ import { toast } from 'react-toastify'
 
 interface WishlistContextType {
   wishlistIds: Array<string | number>
-  toggleWishlist: (productId: string | number) => { ids: Array<string | number>, added: boolean }
+  toggleWishlist: (productId: string | number) => { ids: Array<string | number>, added: boolean, whenDone?: Promise<void> }
 }
 
 const WishlistContext = createContext<WishlistContextType | undefined>(undefined)
@@ -90,11 +90,12 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     // Optimistic UI
     setWishlistIds(next)
 
+    let whenDone: Promise<void> | undefined
     if (isCustomer) {
-      // Fire-and-forget API call; revert only if backend fails and the current
+      // Fire-and-handle API call; revert only if backend fails and the current
       // client state still matches the optimistic state (avoids clobbering
       // subsequent user actions).
-      toggleWishlistApi(String(productId)).catch((err: any) => {
+      whenDone = toggleWishlistApi(String(productId)).then(() => {}).catch((err: any) => {
         setWishlistIds((cur) => {
           try {
             if (JSON.stringify(cur) === JSON.stringify(next)) return prev
@@ -104,10 +105,11 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
           return cur
         })
         toast.error(err?.message || 'Failed to update wishlist')
+        throw err
       })
     }
 
-    return { ids: next, added: !exists }
+    return { ids: next, added: !exists, whenDone }
   }
 
   return (
