@@ -77,7 +77,13 @@ export default function LoginPage() {
       login(role as any);
 
       // ── Redirect by role ──────────────────────────────────────────────────
-      router.push(dashboardForRole(role));
+      const searchParams = new URLSearchParams(window.location.search);
+      const redirectUrl = searchParams.get('redirect');
+      if (redirectUrl && redirectUrl.startsWith('/')) {
+        router.push(redirectUrl);
+      } else {
+        router.push(dashboardForRole(role));
+      }
     } catch {
       setErrorMessage('Unable to reach the server. Please check your connection.');
     } finally {
