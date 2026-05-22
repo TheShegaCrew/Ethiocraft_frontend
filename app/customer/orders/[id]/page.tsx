@@ -17,6 +17,7 @@ import {
   type ApiOrderTrackingEvent,
 } from "@/lib/api";
 import { useNotifications } from "@/hooks/useNotifications";
+import { Skeleton } from '@/components/ui/skeleton'
 
 function formatDateTime(date?: string | null): string {
   if (!date) return "Not available";
@@ -77,7 +78,15 @@ export default function CustomerOrderDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  const { notifications, unreadCount: unreadNotifications, markAsRead, markAllAsRead, refresh } = useNotifications({ enabled: Boolean(token || role) });
+  const {
+    notifications,
+    unreadCount: unreadNotifications,
+    readCount,
+    markAsRead,
+    markAllAsRead,
+    clearRead,
+    refresh,
+  } = useNotifications({ enabled: Boolean(token || role) });
   const headerNotifications = notifications.map((n) => ({
     id: n.id,
     message: n.message,
@@ -141,6 +150,8 @@ export default function CustomerOrderDetailPage() {
         unreadNotifications={unreadNotifications}
         markAsRead={markAsRead}
         markAllAsRead={markAllAsRead}
+        clearRead={clearRead}
+        readCount={readCount}
         refresh={refresh}
       />
       <main className="flex-1">
@@ -152,9 +163,13 @@ export default function CustomerOrderDetailPage() {
           </div>
 
           {isLoading ? (
-            <Card className="p-6">
-              <p className="text-sm text-muted-foreground">Loading order details...</p>
-            </Card>
+              <Card className="p-6">
+                <div className="space-y-3">
+                  <Skeleton className="h-6 w-1/4" />
+                  <Skeleton className="h-4 w-1/3" />
+                  <Skeleton className="h-48 w-full" />
+                </div>
+              </Card>
           ) : error ? (
             <Card className="p-6 border-red-200 bg-red-50">
               <h1 className="text-lg font-semibold text-red-700">Unable to load order</h1>

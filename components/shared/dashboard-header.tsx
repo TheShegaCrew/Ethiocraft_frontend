@@ -40,6 +40,8 @@ type DashboardHeaderProps = {
   unreadNotifications?: number;
   markAsRead?: (id: string | number) => void | Promise<void>;
   markAllAsRead?: () => void | Promise<void>;
+  clearRead?: () => void | Promise<void>;
+  readCount?: number;
   refresh?: () => void | Promise<void>;
 };
 
@@ -49,6 +51,8 @@ export function DashboardHeader({
   statusText = "",
   markAsRead,
   markAllAsRead,
+  clearRead,
+  readCount = 0,
   refresh,
 }: DashboardHeaderProps) {
   const [refreshLoading, setRefreshLoading] = useState(false);
@@ -214,6 +218,15 @@ export function DashboardHeader({
                             className="text-xs text-muted-foreground hover:underline"
                           >
                             Mark all read
+                          </button>
+                        )}
+                        {readCount > 0 && clearRead && (
+                          <button
+                            type="button"
+                            onClick={() => clearRead()}
+                            className="text-xs text-muted-foreground hover:underline"
+                          >
+                            Clear
                           </button>
                         )}
                         {refresh && (
@@ -427,14 +440,14 @@ export function DashboardHeader({
               />
               <div
                 ref={searchBarRef}
-                className="fixed top-0 left-0 w-full bg-[#FAFAF9] z-[60] shadow-lg"
+                className="fixed top-0 left-0 w-full bg-transparent z-[60]"
                 onClick={(e) => e.stopPropagation()}
               >
-                <div className="container mx-auto px-4 py-4">
+                <div className="container mx-auto px-4 py-6">
                   <Suspense
                     fallback={
                       <div
-                        className="mx-auto h-11 w-full max-w-2xl animate-pulse rounded-none border border-gray-300 bg-white"
+                        className="mx-auto h-12 w-full max-w-2xl animate-pulse rounded-full border border-gray-200 bg-white shadow-sm"
                         aria-hidden
                       />
                     }

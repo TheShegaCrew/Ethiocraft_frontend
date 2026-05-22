@@ -1,7 +1,7 @@
 
 "use client";
 import { ChangeEvent, useMemo, useRef, useState } from 'react';
-const BaseUrl = "http://localhost:4000/api/v1";
+const BaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? process.env.NEXT_PUBLIC_BASE_URL ?? 'http://localhost:4000/api/v1';
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------

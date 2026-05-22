@@ -211,7 +211,14 @@ export default function App() {
   const [usersLoading, setUsersLoading] = useState(true);
 
   const [approvalItems, setApprovalItems] = useState<ApprovalItem[]>(initialApprovalItems);
-  const { notifications: rawNotifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+  const {
+    notifications: rawNotifications,
+    unreadCount,
+    readCount,
+    markAsRead,
+    markAllAsRead,
+    clearRead,
+  } = useNotifications();
 
   const notifications = useMemo(() => {
     return rawNotifications.slice(0, 12).map((n: any) => ({
@@ -377,7 +384,7 @@ export default function App() {
   );
 
   const kpiCards = useMemo(() => {
-    const loadingCard = (title: string) => ({ title, value: '—', subtitle: overviewLoading ? 'Loading…' : 'No data' });
+    const loadingCard = (title: string) => ({ title, value: '—', subtitle: overviewLoading ? 'Loading' : 'No data' });
     if (!overview || overviewLoading) {
       return [
         loadingCard('Total Users'),
@@ -752,15 +759,32 @@ export default function App() {
               <div className="absolute right-8 top-[calc(100%+8px)] z-40 w-[340px] rounded-2xl border border-[#e8dece] bg-white p-3 shadow-[0_12px_30px_rgba(62,39,35,0.08)]">
                 <div className="mb-2 flex items-center justify-between px-1">
                   <p className="text-sm font-medium">Notifications</p>
-                  <button
-                    className="text-xs text-[#7d7268] underline underline-offset-2"
-                    onClick={() => {
-                      markAllAsRead();
-                      showFeedback('All notifications marked as read');
-                    }}
-                  >
-                    Mark all read
-                  </button>
+                  <div className="flex items-center gap-3">
+                    {unreadCount > 0 && (
+                      <button
+                        type="button"
+                        className="text-xs text-[#7d7268] underline underline-offset-2"
+                        onClick={() => {
+                          markAllAsRead();
+                          showFeedback('All notifications marked as read');
+                        }}
+                      >
+                        Mark all read
+                      </button>
+                    )}
+                    {readCount > 0 && (
+                      <button
+                        type="button"
+                        className="text-xs text-[#7d7268] underline underline-offset-2"
+                        onClick={() => {
+                          clearRead();
+                          showFeedback('Read notifications cleared');
+                        }}
+                      >
+                        Clear read
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className="max-h-72 space-y-1 overflow-y-auto">
                   {notifications.map((item) => (

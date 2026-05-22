@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, Suspense, useRef } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  Suspense,
+  useRef,
+} from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
@@ -13,6 +20,7 @@ import { Heart } from "lucide-react";
 import Link from "next/link";
 import ChatSupport from "@/components/ChatSupport";
 import { toast } from "react-toastify";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   fetchMarketplaceFacets,
   fetchProducts,
@@ -35,7 +43,13 @@ type Product = {
   rating: number;
 };
 
-const categories = ["All", "Textiles", "Jewelry", "Home", "Accessories"] as const;
+const categories = [
+  "All",
+  "Textiles",
+  "Jewelry",
+  "Home",
+  "Accessories",
+] as const;
 
 const FALLBACK_REGIONS = ["Addis Ababa", "Oromia", "SNNPR", "Amhara", "Tigray"];
 const FALLBACK_MATERIALS = ["Clay", "Cotton", "Silver", "Straw", "Leather"];
@@ -82,7 +96,10 @@ function sortFromSearchParam(raw: string | null): UiSortId {
 }
 
 /** Curated defaults to relevance when searching, newest otherwise — reflected in API. */
-function uiSortToApiSort(sortBy: UiSortId, appliedQuery: string): MarketplaceSortBy | undefined {
+function uiSortToApiSort(
+  sortBy: UiSortId,
+  appliedQuery: string,
+): MarketplaceSortBy | undefined {
   const hasSearch = Boolean(appliedQuery.trim());
   switch (sortBy) {
     case "curated":
@@ -106,7 +123,10 @@ function uiSortToApiSort(sortBy: UiSortId, appliedQuery: string): MarketplaceSor
   }
 }
 
-function facetValuesOrFallback(rows: MarketplaceFacetBucket[], fallback: string[]) {
+function facetValuesOrFallback(
+  rows: MarketplaceFacetBucket[],
+  fallback: string[],
+) {
   const active = rows.filter((r) => r.count > 0).map((r) => r.value);
   return active.length ? active : fallback;
 }
@@ -115,8 +135,11 @@ export default function productPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center bg-[#FAFAF9]">
-          Loading…
+        <div className="mb-4 px-1 py-2 text-xs font-medium uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
+          <div className="flex items-center gap-2.5">
+            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-800 dark:border-neutral-700 dark;border-t-neutral-200" />
+            <span>Loading products...</span>
+          </div>
         </div>
       }
     >
@@ -137,7 +160,6 @@ function ProductPageContent() {
   const [sortBy, setSortBy] = useState<UiSortId>("curated");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [visibleIds, setVisibleIds] = useState<string[]>([]);
-  const [wishlistMessage, setWishlistMessage] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
   const [productFetchError, setProductFetchError] = useState("");
@@ -153,7 +175,7 @@ function ProductPageContent() {
   const [facets, setFacets] = useState<MarketplaceFacetsResponse | null>(null);
   const [facetsLoading, setFacetsLoading] = useState(false);
 
-  const appliedQuery = (searchParams.get("q")?.trim() ?? "");
+  const appliedQuery = searchParams.get("q")?.trim() ?? "";
 
   /** Hydrate local filter state from the URL whenever it changes (back/share links). */
   useEffect(() => {
@@ -161,10 +183,16 @@ function ProductPageContent() {
     setActiveCategory(catParam || "All");
 
     setSelectedRegions(
-      searchParams.getAll("region").map((r) => r.trim()).filter(Boolean),
+      searchParams
+        .getAll("region")
+        .map((r) => r.trim())
+        .filter(Boolean),
     );
     setSelectedMaterials(
-      searchParams.getAll("material").map((m) => m.trim()).filter(Boolean),
+      searchParams
+        .getAll("material")
+        .map((m) => m.trim())
+        .filter(Boolean),
     );
 
     const minPrice = searchParams.get("minPrice");
@@ -195,7 +223,7 @@ function ProductPageContent() {
         priceRange: [number, number];
         sort: UiSortId;
       }>,
-      opts?: { replace?: boolean }
+      opts?: { replace?: boolean },
     ) => {
       const q = overrides.q ?? appliedQuery;
       const categoryLabel = overrides.category ?? activeCategory;
@@ -240,8 +268,7 @@ function ProductPageContent() {
       search: appliedQuery.trim() ? appliedQuery.trim() : undefined,
       category: activeCategory !== "All" ? activeCategory : undefined,
       minPrice: priceRange[0] > 0 ? priceRange[0] : undefined,
-      maxPrice:
-        priceRange[1] < PRICE_CAP ? priceRange[1] : undefined,
+      maxPrice: priceRange[1] < PRICE_CAP ? priceRange[1] : undefined,
       regions: selectedRegions.length ? selectedRegions : undefined,
       materials: selectedMaterials.length ? selectedMaterials : undefined,
     }),
@@ -283,24 +310,25 @@ function ProductPageContent() {
           search: appliedQuery.trim() ? appliedQuery.trim() : undefined,
           category: activeCategory !== "All" ? activeCategory : undefined,
           minPrice: priceRange[0] > 0 ? priceRange[0] : undefined,
-          maxPrice:
-            priceRange[1] < PRICE_CAP ? priceRange[1] : undefined,
+          maxPrice: priceRange[1] < PRICE_CAP ? priceRange[1] : undefined,
           sortBy: apiSort,
           regions: selectedRegions.length ? selectedRegions : undefined,
           materials: selectedMaterials.length ? selectedMaterials : undefined,
         });
         const items = response.items;
-        const mappedProducts: Product[] = items.map((item: ApiProductSummary) => ({
-          id: item.id,
-          name: item.title,
-          category: item.category || "Other",
-          price: item.price ?? 0,
-          image: getProductImage(item) || "/placeholder-product.jpg",
-          badge: item.publishedAt ? "Handmade" : undefined,
-          region: item.artisan?.artisanProfile?.region || undefined,
-          material: item.materials?.[0] || undefined,
-          rating: item._count?.reviews ? 5 : 4.5,
-        }));
+        const mappedProducts: Product[] = items.map(
+          (item: ApiProductSummary) => ({
+            id: item.id,
+            name: item.title,
+            category: item.category || "Other",
+            price: item.price ?? 0,
+            image: getProductImage(item) || "/placeholder-product.jpg",
+            badge: item.publishedAt ? "Handmade" : undefined,
+            region: item.artisan?.artisanProfile?.region || undefined,
+            material: item.materials?.[0] || undefined,
+            rating: item._count?.reviews ? 5 : 4.5,
+          }),
+        );
         setProducts(mappedProducts);
         setProductFetchError("");
       } catch (error) {
@@ -360,19 +388,21 @@ function ProductPageContent() {
     return () => observer.disconnect();
   }, [filteredProducts]);
 
-
-
-  useEffect(() => {
-    if (!wishlistMessage) return;
-    const timeout = setTimeout(() => setWishlistMessage(""), 1800);
-    return () => clearTimeout(timeout);
-  }, [wishlistMessage]);
-
   const regionsList = facets?.regions?.length
-    ? [...new Set([...facetValuesOrFallback(facets.regions, FALLBACK_REGIONS), ...FALLBACK_REGIONS])]
+    ? [
+        ...new Set([
+          ...facetValuesOrFallback(facets.regions, FALLBACK_REGIONS),
+          ...FALLBACK_REGIONS,
+        ]),
+      ]
     : FALLBACK_REGIONS;
   const materialsList = facets?.materials?.length
-    ? [...new Set([...facetValuesOrFallback(facets.materials, FALLBACK_MATERIALS), ...FALLBACK_MATERIALS])]
+    ? [
+        ...new Set([
+          ...facetValuesOrFallback(facets.materials, FALLBACK_MATERIALS),
+          ...FALLBACK_MATERIALS,
+        ]),
+      ]
     : FALLBACK_MATERIALS;
 
   const resetFilters = () => {
@@ -411,9 +441,6 @@ function ProductPageContent() {
     event.stopPropagation();
 
     const { added } = toggleWishlist(productId);
-    setWishlistMessage(
-      added ? "Added to wishlist" : "Removed from wishlist",
-    );
     toast.info(added ? "Added to wishlist" : "Removed from wishlist");
   };
 
@@ -446,7 +473,8 @@ function ProductPageContent() {
     keywordActive ||
     sortBy !== "curated";
 
-  const facetCategoryRows = facets?.categories?.filter((x) => x.count > 0) ?? [];
+  const facetCategoryRows =
+    facets?.categories?.filter((x) => x.count > 0) ?? [];
 
   const onSortChange = (nextSort: UiSortId) => {
     setSortBy(nextSort);
@@ -456,7 +484,7 @@ function ProductPageContent() {
   const onFacetCategoryClick = (cat: string) => {
     setActiveCategory(cat);
     replaceListingUrl({
-        category: cat,
+      category: cat,
     });
   };
 
@@ -534,40 +562,40 @@ function ProductPageContent() {
                 )}
               </button>
             </li>
-            {facetCategoryRows.length ? (
-              facetCategoryRows.map((row) => (
-                <li key={row.value}>
-                  <button
-                    type="button"
-                    onClick={() => onFacetCategoryClick(row.value)}
-                    className={`flex w-full items-center justify-between gap-2 border text-left transition-colors ${
-                      isSidebar ? "px-2 py-1.5 text-xs" : "px-3 py-2 text-sm"
-                    } ${
-                      activeCategory === row.value
-                        ? "border-[#C6A75E] text-[#C6A75E]"
-                        : `${isSidebar ? "border-[#e8e5df]" : "border-[#ddd8cf]"} hover:border-[#C6A75E]`
-                    }`}
-                  >
-                    <span>{row.value}</span>
-                    <span className="text-[10px] text-[#9a9289]">{row.count}</span>
-                  </button>
-                </li>
-              ))
-            ) : (
-              categories
-                .filter((c) => c !== "All")
-                .map((c) => (
-                  <li key={c}>
+            {facetCategoryRows.length
+              ? facetCategoryRows.map((row) => (
+                  <li key={row.value}>
                     <button
                       type="button"
-                      onClick={() => onFacetCategoryClick(c)}
-                      className={catBtnClass(activeCategory === c)}
+                      onClick={() => onFacetCategoryClick(row.value)}
+                      className={`flex w-full items-center justify-between gap-2 border text-left transition-colors ${
+                        isSidebar ? "px-2 py-1.5 text-xs" : "px-3 py-2 text-sm"
+                      } ${
+                        activeCategory === row.value
+                          ? "border-[#C6A75E] text-[#C6A75E]"
+                          : `${isSidebar ? "border-[#e8e5df]" : "border-[#ddd8cf]"} hover:border-[#C6A75E]`
+                      }`}
                     >
-                      <span>{c}</span>
+                      <span>{row.value}</span>
+                      <span className="text-[10px] text-[#9a9289]">
+                        {row.count}
+                      </span>
                     </button>
                   </li>
                 ))
-            )}
+              : categories
+                  .filter((c) => c !== "All")
+                  .map((c) => (
+                    <li key={c}>
+                      <button
+                        type="button"
+                        onClick={() => onFacetCategoryClick(c)}
+                        className={catBtnClass(activeCategory === c)}
+                      >
+                        <span>{c}</span>
+                      </button>
+                    </li>
+                  ))}
           </ul>
         </div>
 
@@ -637,7 +665,9 @@ function ProductPageContent() {
                       {mat}
                     </span>
                     {count != null && count > 0 && (
-                      <span className="text-[10px] text-[#9a9289]">{count}</span>
+                      <span className="text-[10px] text-[#9a9289]">
+                        {count}
+                      </span>
                     )}
                   </label>
                 </li>
@@ -671,7 +701,9 @@ function ProductPageContent() {
                       {region}
                     </span>
                     {count != null && count > 0 && (
-                      <span className="text-[10px] text-[#9a9289]">{count}</span>
+                      <span className="text-[10px] text-[#9a9289]">
+                        {count}
+                      </span>
                     )}
                   </label>
                 </li>
@@ -758,7 +790,8 @@ function ProductPageContent() {
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#7a746d]">
               <span>
                 Showing {filteredProducts.length}
-                {!isLoadingProducts && products.length !== filteredProducts.length
+                {!isLoadingProducts &&
+                products.length !== filteredProducts.length
                   ? ""
                   : ` (${products.length} loaded)`}{" "}
                 products
@@ -814,21 +847,32 @@ function ProductPageContent() {
           </div>
         </section>
 
-        {wishlistMessage && (
-          <p className="mb-5 border border-[#ddd8cf] bg-[#f8f6f1] px-4 py-2 text-xs uppercase tracking-wider text-[#5f5b55]">
-            {wishlistMessage}
-          </p>
-        )}
+        {/* wishlist messages are shown via react-toastify toasts */}
         {isLoadingProducts && (
-          <p className="mb-5 border border-[#ddd8cf] bg-[#f8f6f1] px-4 py-2 text-xs uppercase tracking-wider text-[#5f5b55]">
-            Loading products from backend…
-          </p>
+          <div className="mb-5">
+            <div className="mb-4 px-1 py-2 text-xs font-medium uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
+              <div className="flex items-center gap-2.5">
+                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-800 dark:border-neutral-700 dark:border-t-neutral-200" />
+                <span>Loading products...</span>
+              </div>
+            </div>
+            <section className="grid grid-cols-2 gap-x-6 gap-y-12 md:grid-cols-3 md:gap-x-9 md:gap-y-16 xl:grid-cols-4">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <article key={i} className="group">
+                  <div className="relative block overflow-hidden bg-[#f1eee8]">
+                    <Skeleton className="h-[240px] w-full md:h-[320px]" />
+                    <div className="absolute bottom-4 left-1/2 hidden -translate-x-1/2 border border-[#e6dfd2] bg-[#fafaf9f0] px-4 py-2 text-xs opacity-0 transition duration-300 group-hover:opacity-100 md:block" />
+                  </div>
+                  <div className="pt-4">
+                    <Skeleton className="h-4 w-3/4 mb-2" />
+                    <Skeleton className="h-3 w-1/2" />
+                  </div>
+                </article>
+              ))}
+            </section>
+          </div>
         )}
-        {productFetchError && (
-          <p className="mb-5 border border-[#e0b7b7] bg-[#fff5f5] px-4 py-2 text-xs uppercase tracking-wider text-[#8d3a3a]">
-            {productFetchError}
-          </p>
-        )}
+        {/* errors are shown via react-toastify toasts */}
 
         <div className="relative">
           {/* Filter Sidebar - slides from right side when clicked */}
@@ -839,7 +883,7 @@ function ProductPageContent() {
                 className="fixed inset-0 z-40 bg-black/20"
                 onClick={() => setDrawerOpen(false)}
               />
-              
+
               {/* Sidebar */}
               <aside className="fixed right-0 top-0 z-50 h-full w-[320px] overflow-y-auto border-l border-[#e8e0d1] bg-[#FAFAF9] px-6 py-8 transition-transform duration-500 translate-x-0">
                 <div className="mb-8 flex items-center justify-between">
@@ -857,7 +901,7 @@ function ProductPageContent() {
                     ✕
                   </button>
                 </div>
-                
+
                 <div
                   className="space-y-6 text-sm"
                   style={{ fontFamily: "Aeonik, Inter, sans-serif" }}
@@ -883,7 +927,11 @@ function ProductPageContent() {
                       key={m.value}
                       type="button"
                       onClick={() =>
-                        toggleFacetBucket(m.value, selectedMaterials, "materials")
+                        toggleFacetBucket(
+                          m.value,
+                          selectedMaterials,
+                          "materials",
+                        )
                       }
                       className={`border px-2 py-1 text-[10px] uppercase tracking-[0.08em] ${
                         selectedMaterials.includes(m.value)
@@ -923,9 +971,10 @@ function ProductPageContent() {
                       className="group"
                       style={{
                         opacity: isVisible ? 1 : 0,
-                        transform: isVisible ? "translateY(0)" : "translateY(26px)",
-                        transition:
-                          `opacity 700ms ease ${index * 70}ms, transform 700ms ease ${index * 70}ms`,
+                        transform: isVisible
+                          ? "translateY(0)"
+                          : "translateY(26px)",
+                        transition: `opacity 700ms ease ${index * 70}ms, transform 700ms ease ${index * 70}ms`,
                       }}
                     >
                       <div className="relative block overflow-hidden bg-[#f1eee8]">
@@ -964,7 +1013,9 @@ function ProductPageContent() {
                               ? "Remove from wishlist"
                               : "Add to wishlist"
                           }
-                          onClick={(event) => handleWishlistToggle(event, product.id)}
+                          onClick={(event) =>
+                            handleWishlistToggle(event, product.id)
+                          }
                           className="absolute right-3 top-3 z-20 flex h-9 w-9 items-center justify-center transition-colors"
                         >
                           <Heart
@@ -1003,13 +1054,14 @@ function ProductPageContent() {
                         </Link>
 
                         <div className="mt-4 flex items-center justify-between border-t border-[#e8e5df] pt-4">
-                          <p className="text-sm font-medium" style={{ fontFamily: "Inter, sans-serif" }}>
+                          <p
+                            className="text-sm font-medium"
+                            style={{ fontFamily: "Inter, sans-serif" }}
+                          >
                             ${product.price}
                           </p>
                           <Button
-                            onClick={(event) =>
-                              handleAddToCart(event, product)
-                            }
+                            onClick={(event) => handleAddToCart(event, product)}
                             variant="outline"
                             className="h-9 rounded-none border-[#ddd8cf] bg-transparent px-4 text-[10px] uppercase tracking-widest transition-colors hover:border-[#C6A75E] hover:bg-[#C6A75E] hover:text-white"
                           >

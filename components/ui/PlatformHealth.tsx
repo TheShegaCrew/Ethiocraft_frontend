@@ -8,9 +8,9 @@ export default function PlatformHealth({ metrics }: { metrics?: HealthMetric[] }
     metrics && metrics.length > 0
       ? metrics
       : [
-          { label: "Loading…", value: 0 },
-          { label: "Loading…", value: 0 },
-          { label: "Loading…", value: 0 },
+          { label: "Loading", value: 0 },
+          { label: "Loading", value: 0 },
+          { label: "Loading", value: 0 },
         ];
 
   return (
