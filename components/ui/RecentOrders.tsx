@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose, DrawerFooter } from '@/components/ui/drawer';
 import { useRouter } from 'next/navigation';
-import { X } from 'lucide-react';
+import { Inbox, X } from 'lucide-react';
 
 type Customer = {
   firstName?: string;
@@ -95,26 +95,38 @@ export default function RecentOrders({ containerHeight, rowHeight, setDetailsOrd
             const next = Math.floor(event.currentTarget.scrollTop / rowHeight);
             if (next !== visibleStart) setVisibleStart(next);
           }}>
-            <div style={{ height: `${sortedOrders.length * rowHeight}px`, position: 'relative' }}>
-              {visibleOrders.map((order: any, idx: number) => {
-                const index = visibleStart + idx;
-                const customerName = typeof order.customer === 'string' ? order.customer : (order.customer ? `${order.customer?.firstName || ''} ${order.customer?.lastName || ''}`.trim() || order.customer?.email || '' : '');
-                const amount = order.totalAmount ?? order.amount ?? order.subtotalAmount ?? '—';
-                
-                return (
-                  <div key={order.id} className="grid grid-cols-[1fr_2fr_1fr_1fr_1fr_0.7fr] gap-4 items-center px-4 text-sm transition hover:bg-[#fcf8f0]" style={{ position: 'absolute', top: `${index * rowHeight}px`, left: 0, right: 0, height: `${rowHeight}px`, fontFamily: 'Inter, sans-serif' }}>
-                    <span className="min-w-0 truncate font-medium text-[#3E2723]">{order.id}</span>
-                    <span className="min-w-0 truncate" title={customerName}>{customerName}</span>
-                    <span className="min-w-0 truncate">{amount}{order.currency ? ` ${order.currency}` : ''}</span>
-                    <span className="min-w-0">
-                      <span className={`inline-block max-w-full truncate rounded-full px-2 py-1 text-xs ${statusClass(order.status)}`}>{order.status}</span>
-                    </span>
-                    <span className="min-w-0 truncate text-[#72665d]">{new Date(order.createdAt || order.date).toLocaleDateString()}</span>
-                    <Button variant="ghost" size="sm" onClick={() => handleViewOrder(order)}>View</Button>
-                  </div>
-                );
-              })}
-            </div>
+            {sortedOrders.length === 0 ? (
+              <div className="flex flex-col items-center justify-center px-4 text-center h-full">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#f1e9da] mb-3">
+                  <Inbox className="h-8 w-8 text-[#81756b]" />
+                </div>
+                <h3 className="text-base font-semibold text-[#3E2723]" style={{ fontFamily: 'Aeonik, Inter, sans-serif' }}>No Recent Orders</h3>
+                <p className="mt-1 max-w-xs text-xs text-[#85786d]">
+                  There are no orders to display for this period.
+                </p>
+              </div>
+            ) : (
+              <div style={{ height: `${sortedOrders.length * rowHeight}px`, position: 'relative' }}>
+                {visibleOrders.map((order: any, idx: number) => {
+                  const index = visibleStart + idx;
+                  const customerName = typeof order.customer === 'string' ? order.customer : (order.customer ? `${order.customer?.firstName || ''} ${order.customer?.lastName || ''}`.trim() || order.customer?.email || '' : '');
+                  const amount = order.totalAmount ?? order.amount ?? order.subtotalAmount ?? '—';
+                  
+                  return (
+                    <div key={order.id} className="grid grid-cols-[1fr_2fr_1fr_1fr_1fr_0.7fr] gap-4 items-center px-4 text-sm transition hover:bg-[#fcf8f0]" style={{ position: 'absolute', top: `${index * rowHeight}px`, left: 0, right: 0, height: `${rowHeight}px`, fontFamily: 'Inter, sans-serif' }}>
+                      <span className="min-w-0 truncate font-medium text-[#3E2723]">{order.id}</span>
+                      <span className="min-w-0 truncate" title={customerName}>{customerName}</span>
+                      <span className="min-w-0 truncate">{amount}{order.currency ? ` ${order.currency}` : ''}</span>
+                      <span className="min-w-0">
+                        <span className={`inline-block max-w-full truncate rounded-full px-2 py-1 text-xs ${statusClass(order.status)}`}>{order.status}</span>
+                      </span>
+                      <span className="min-w-0 truncate text-[#72665d]">{new Date(order.createdAt || order.date).toLocaleDateString()}</span>
+                      <Button variant="ghost" size="sm" onClick={() => handleViewOrder(order)}>View</Button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </article>

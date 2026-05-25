@@ -1,5 +1,6 @@
 "use client"
 import { useMemo } from "react";
+import { Activity } from "lucide-react";
 
 interface Props {
   items: { id: string; text: string }[];
@@ -19,8 +20,7 @@ function splitActivityLine(text: string): { description: string; meta: string } 
 
 export default function ActivityFeed({ items, maxItems = 5 }: Props) {
   const rows = useMemo(() => {
-    const base = items.length > 0 ? items : [{ id: "empty", text: "No recent audit events yet." }];
-    return base.slice(0, maxItems);
+    return items.slice(0, maxItems);
   }, [items, maxItems]);
 
   return (
@@ -45,23 +45,32 @@ export default function ActivityFeed({ items, maxItems = 5 }: Props) {
       </div>
 
       <ul className="mt-2 divide-y divide-[#f1e8da]">
-        {rows.map((item) => {
-          const { description, meta } = splitActivityLine(item.text);
-          return (
-            <li key={item.id} className="flex gap-2 py-2 first:pt-0">
-              <span
-                className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#C6A75E]"
-                aria-hidden
-              />
-              <div className="min-w-0 flex-1">
-                <p className="text-[11px] font-medium leading-snug text-[#302521] line-clamp-2">{description}</p>
-                {meta ? (
-                  <p className="mt-0.5 truncate text-[10px] leading-tight text-[#8a7f73]">{meta}</p>
-                ) : null}
-              </div>
-            </li>
-          );
-        })}
+        {items.length === 0 ? (
+          <li className="flex flex-col items-center justify-center py-6 px-4 text-center">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#f1e9da] mb-2">
+              <Activity className="h-4 w-4 text-[#81756b]" />
+            </div>
+            <h3 className="text-xs font-medium text-[#3E2723]">No Recent Activity</h3>
+          </li>
+        ) : (
+          rows.map((item) => {
+            const { description, meta } = splitActivityLine(item.text);
+            return (
+              <li key={item.id} className="flex gap-2 py-2 first:pt-0">
+                <span
+                  className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#C6A75E]"
+                  aria-hidden
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] font-medium leading-snug text-[#302521] line-clamp-2">{description}</p>
+                  {meta ? (
+                    <p className="mt-0.5 truncate text-[10px] leading-tight text-[#8a7f73]">{meta}</p>
+                  ) : null}
+                </div>
+              </li>
+            );
+          })
+        )}
       </ul>
     </article>
   );
