@@ -232,11 +232,16 @@ export default function App() {
           }
 
           if (item.media && item.media.length > 0) {
+            const resolveUrl = (url: string) => {
+              if (!url) return '';
+              if (/^https?:\/\//i.test(url)) return url; // already absolute (Cloudinary etc.)
+              return url.startsWith('/') ? `http://localhost:4000${url}` : `http://localhost:4000/${url}`;
+            };
             const formattedMedia = item.media.map((m: any) => ({
               id: m.id,
               type: m.kind?.toLowerCase() === 'video' ? 'video' : 'image',
-              src: `http://localhost:4000${m.url}`,
-              thumb: `http://localhost:4000${m.url}`
+              src: resolveUrl(m.url),
+              thumb: resolveUrl(m.url)
             }));
             setMediaList(formattedMedia);
             setSelectedMediaId(formattedMedia[0].id);
