@@ -10,7 +10,7 @@ import { useAuth } from '@/lib/auth-context'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { createOrderApi, initializePaymentApi, createUserAddress } from '@/lib/api'
+import { createOrderApi, initializePaymentApi, createUserAddress, fetchUserAddresses } from '@/lib/api'
 
 type CheckoutStep = 'shipping' | 'payment' | 'review'
 
@@ -36,21 +36,8 @@ export default function CheckoutPage() {
   const [currentStep, setCurrentStep] = useState<CheckoutStep>('shipping')
   const [isProcessing, setIsProcessing] = useState(false)
   const [paymentError, setPaymentError] = useState<string>('')
-
-  useEffect(() => {
-    if (!role) {
-      router.push('/auth/login?redirect=/cart/checkout')
-    }
-  }, [role, router])
-
-  if (!role) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        <p className="text-muted-foreground mt-4">Redirecting to login...</p>
-      </div>
-    )
-  }
+  const [matchedAddress, setMatchedAddress] = useState<any | null>(null)
+  const [chosenAddressId, setChosenAddressId] = useState<string | null>(null)
 
   const {
     register,
@@ -71,6 +58,22 @@ export default function CheckoutPage() {
       shippingMethod: 'standard',
     },
   })
+
+  useEffect(() => {
+    if (!role) {
+      router.push('/auth/login?redirect=/cart/checkout')
+    }
+  }, [role, router])
+
+  if (!role) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <p className="text-muted-foreground mt-4">Redirecting to login...</p>
+      </div>
+    )
+  }
+
 
   const formData = watch()
   const steps = [
@@ -94,6 +97,28 @@ export default function CheckoutPage() {
     if (currentStep === 'shipping') {
       const isValid = await trigger(['phone', 'fullName', 'address', 'city', 'region', 'shippingMethod'])
       if (!isValid) return
+      // Try to find a saved address that matches the entered details and prompt the user
+      try {
+        const values = getValues()
+        const normalize = (s: string | null | undefined) => (s ?? '').trim().toLowerCase()
+        const existing = await fetchUserAddresses()
+        const match = existing.find((a) =>
+          normalize(a.recipientName) === normalize(values.fullName) &&
+          normalize(a.phone) === normalize(values.phone) &&
+          normalize(a.region) === normalize(values.region) &&
+          normalize(a.city) === normalize(values.city) &&
+          normalize(a.line1) === normalize(values.address) &&
+          normalize(a.postalCode) === normalize(values.postalCode)
+        )
+
+        if (match) {
+          setMatchedAddress(match)
+          return
+        }
+      } catch (e) {
+        // ignore fetch errors and proceed to payment
+      }
+
       setCurrentStep('payment')
     } else if (currentStep === 'payment') {
       setCurrentStep('review')
@@ -123,17 +148,25 @@ export default function CheckoutPage() {
 
     try {
       const values = getValues()
+      let savedAddress = null
 
-      // Step 1: Create a shipping address on the backend to get an addressId
-      const savedAddress = await createUserAddress({
-        recipientName: values.fullName,
-        phone: values.phone,
-        region: values.region,
-        city: values.city,
-        line1: values.address,
-        postalCode: values.postalCode || undefined,
-        isDefault: false,
-      })
+      if (chosenAddressId) {
+        // user already chose a saved address earlier
+        savedAddress = { id: chosenAddressId }
+      } else if (matchedAddress) {
+        savedAddress = matchedAddress
+      } else {
+        // No chosen or matched address: create one
+        savedAddress = await createUserAddress({
+          recipientName: values.fullName,
+          phone: values.phone,
+          region: values.region,
+          city: values.city,
+          line1: values.address,
+          postalCode: values.postalCode || undefined,
+          isDefault: false,
+        })
+      }
 
       // Step 2: Create the real order in the database
       const orderItems = cartItems.map((item) => ({
@@ -356,6 +389,39 @@ export default function CheckoutPage() {
                     </div>
                   </div>
                 </div>
+
+                {matchedAddress && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-6">
+                    <p className="font-medium">We found a saved address that matches what you entered:</p>
+                    <div className="mt-2 text-sm text-foreground">
+                      <p className="font-semibold">{matchedAddress.recipientName}</p>
+                      <p>{matchedAddress.line1}{matchedAddress.line2 ? `, ${matchedAddress.line2}` : ''}</p>
+                      <p>{matchedAddress.city}, {matchedAddress.region} {matchedAddress.postalCode || ''}</p>
+                      <p className="text-sm text-muted-foreground">{matchedAddress.phone}</p>
+                    </div>
+                    <div className="mt-4 flex gap-3">
+                      <Button
+                        onClick={() => {
+                          setChosenAddressId(matchedAddress.id)
+                          setMatchedAddress(null)
+                          setCurrentStep('payment')
+                        }}
+                        className="bg-primary text-primary-foreground hover:bg-primary/90"
+                      >
+                        Use saved address
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setMatchedAddress(null)
+                          setCurrentStep('payment')
+                        }}
+                        className="bg-white border border-border"
+                      >
+                        Use new address
+                      </Button>
+                    </div>
+                  </div>
+                )}
 
                 <Button
                   onClick={handleNext}
