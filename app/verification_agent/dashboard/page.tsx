@@ -1,6 +1,6 @@
 'use client'
 
-import { ChangeEvent, useState } from 'react'
+import { ChangeEvent, DragEvent, useState, useEffect } from 'react'
 import { Footer } from '@/components/shared/footer'
 import { DashboardHeader } from '@/components/shared/dashboard-header'
 import { Button } from '@/components/ui/button'
@@ -37,11 +37,7 @@ export default function AgentDashboard() {
   // Selection States
   const [selectedTask, setSelectedTask] = useState<any>(null)
   const [selectedShipment, setSelectedShipment] = useState<any>(null)
-  const [verificationTasksData, setVerificationTasksData] = useState([
-    { id: 'VT-101', type: 'Artisan Verification', name: 'Bekele Wolde', location: 'Addis Ababa', date: 'Dec 16, 2024', status: 'Pending', artisanPhone: '+251 911 345 678', artisanEmail: 'bekele.wolde@ethiocraft.example', sampleTitle: 'Hand-carved Coffee Table Set' },
-    { id: 'VT-102', type: 'Product Authenticity Check', name: 'Traditional Habesha Dress', location: 'Hawassa', date: 'Dec 15, 2024', status: 'Pending', artisanPhone: '+251 923 567 234', artisanEmail: 'selamawit.tesfaye@ethiocraft.example', sampleTitle: 'Traditional Habesha Dress' },
-    { id: 'VT-103', type: 'Artisan Documents', name: 'Selam Adeyemi', location: 'Dire Dawa', date: 'Dec 14, 2024', status: 'Completed', artisanPhone: '+251 934 998 211', artisanEmail: 'selam.adeyemi@ethiocraft.example', sampleTitle: 'Clay Pottery Collection' },
-  ])
+  const [verificationTasksData, setVerificationTasksData] = useState<any[]>([])
   const [verificationForm, setVerificationForm] = useState({
     measurements: '',
     materials: '',
@@ -49,23 +45,24 @@ export default function AgentDashboard() {
     suggestedPricing: '',
   })
   const [verificationErrors, setVerificationErrors] = useState<{ measurements?: string }>({})
-  const [uploadedMediaFiles, setUploadedMediaFiles] = useState<File[]>([])
+  const [uploadedMediaFiles, setUploadedMediaFiles] = useState<any[]>([])
+  const [dragActive, setDragActive] = useState(false)
+  const [drafts, setDrafts] = useState<any[]>([])
+  const [isDraftModalOpen, setIsDraftModalOpen] = useState(false)
+  const [selectedDraft, setSelectedDraft] = useState<any>(null)
 
   // Demo state to show the activation banner
   const [accountStatus, setAccountStatus] = useState<'pending_activation' | 'incomplete_profile' | 'active'>('pending_activation')
 
-  const taskStats = [
-    { title: 'Total Verifications', value: '156', icon: CheckCircle2 },
-    { title: 'Pending Tasks', value: '12', icon: Clock },
-    { title: 'Active Shipments', value: '34', icon: Truck },
-    { title: 'Issues Flagged', value: '3', icon: AlertCircle },
-  ]
+  const [taskStats, setTaskStats] = useState<any[]>([])
+  const [monthlyVolume, setMonthlyVolume] = useState<number[]>([]) // for bar chart
+  const [performanceMetrics, setPerformanceMetrics] = useState({ accuracyRate: 0, slaCompliance: 0, issueResolutionRate: 0 })
 
-  const shipments = [
-    { id: 'SHP-001', order: 'ORD-001', customer: 'Ahmed Hassan', status: 'In Transit', destination: 'Addis Ababa', date: 'Dec 15, 2024' },
-    { id: 'SHP-002', order: 'ORD-002', customer: 'Fatima Ali', status: 'Pending Pickup', destination: 'Dire Dawa', date: 'Dec 14, 2024' },
-    { id: 'SHP-003', order: 'ORD-003', customer: 'Mohammed Taye', status: 'Delivered', destination: 'Mekelle', date: 'Dec 12, 2024' },
-  ]
+  const [shipments, setShipments] = useState<any[]>([])
+
+  const [selectedShipmentStatus, setSelectedShipmentStatus] = useState<string | null>(null)
+  const [shipmentLocationInput, setShipmentLocationInput] = useState('')
+  const [shipmentNotesInput, setShipmentNotesInput] = useState('')
 
   const { token, role } = useAuth()
   const {
@@ -116,50 +113,376 @@ export default function AgentDashboard() {
     setIsVerificationModalOpen(true)
   }
 
+  // Load server-driven data for dashboard (drafts for verification agents, shipments, profile)
+  useEffect(() => {
+    const base = (process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, '') || 'http://localhost:4000/api/v1'
+    async function load() {
+      let drafts: any[] = []
+      let orders: any[] = []
+      try {
+        // Profile
+        const pres = await fetch(`${base}/users/me`, { credentials: 'include' })
+        if (pres.ok) {
+          const body = await pres.json()
+          const data = body.data || {}
+          const fullName = [data.firstName, data.lastName].filter(Boolean).join(' ')
+          const serviceRegions = data.artisanProfile?.region || ''
+          setAccountStatus(!data.artisanProfile ? 'incomplete_profile' : data.artisanProfile.verificationStatus === 'PENDING' ? 'incomplete_profile' : 'active')
+        }
+      } catch (err) {
+        // ignore
+      }
+
+      try {
+        const draftsUrl = `${base}/verifications/products/drafts${role === 'VERIFICATION_AGENT' ? '?assigned=true' : ''}`
+        const dres = await fetch(draftsUrl, { credentials: 'include' })
+        if (dres.ok) {
+          const body = await dres.json()
+          drafts = body.data || []
+          const mappedDrafts = drafts.map((d:any) => ({ id: d.id, type: d.status, name: d.title || d.artisan?.firstName || 'Unknown', location: d.artisan?.artisanProfile?.region || '', date: d.createdAt, status: d.status, artisanPhone: d.artisan?.phone, artisanEmail: d.artisan?.email, sampleTitle: d.title || '', createdAt: d.createdAt, updatedAt: d.updatedAt }))
+          setVerificationTasksData(mappedDrafts)
+        }
+      } catch (err) {
+        // ignore
+      }
+
+      try {
+        const ores = await fetch(`${base}/orders`, { credentials: 'include' })
+        if (ores.ok) {
+          const body = await ores.json()
+          orders = body.data?.items || []
+          const mappedOrders = orders.map((o:any) => ({ id: o.id, order: o.id, customer: o.customer?.firstName || o.customerId, status: o.status, destination: o.address?.city || '', date: o.createdAt, history: [] }))
+          setShipments(mappedOrders)
+        }
+      } catch (err) {
+        // ignore
+      }
+
+      // Derive dashboard aggregates from fetched data and notifications
+      try {
+        const totalVerifications = drafts.length
+        const pendingDrafts = drafts.filter((d:any) => !['AGENT_VERIFIED','PUBLISHED','APPROVED'].includes(d.status)).length
+        const activeShipments = orders.filter((o:any) => ['PROCESSING','SHIPPED'].includes(o.status)).length
+        const issuesFlagged = notifications.filter((n:any) => ['PRODUCT_REJECTED','GENERAL'].includes(n.type || '')).length
+
+        setTaskStats([
+          { title: 'Total Verifications', value: String(totalVerifications), icon: CheckCircle2 },
+          { title: 'Pending Tasks', value: String(pendingDrafts), icon: Clock },
+          { title: 'Active Shipments', value: String(activeShipments), icon: Truck },
+          { title: 'Issues Flagged', value: String(issuesFlagged), icon: AlertCircle },
+        ])
+
+        // Monthly volume (last 7 months)
+        const now = new Date()
+        const months = Array.from({ length: 7 }).map((_, i) => {
+          const d = new Date()
+          d.setMonth(now.getMonth() - (6 - i))
+          return d
+        })
+        const volume = months.map((m) => drafts.filter((d:any) => { const dt = new Date(d.createdAt || d.date); return dt.getMonth() === m.getMonth() && dt.getFullYear() === m.getFullYear() }).length)
+        setMonthlyVolume(volume)
+
+        // Performance metrics
+        const total = drafts.length || 1
+        const approved = drafts.filter((d:any) => ['ADMIN_REVIEW','AGENT_VERIFIED','PUBLISHED','APPROVED'].includes(d.status)).length
+        const within48h = drafts.filter((d:any) => { if (!d.createdAt || !d.updatedAt) return false; const diff = new Date(d.updatedAt).getTime() - new Date(d.createdAt).getTime(); return diff <= 48 * 60 * 60 * 1000 }).length
+        const issuesResolved = drafts.filter((d:any) => d.status !== 'REJECTED').length
+        setPerformanceMetrics({ accuracyRate: Math.round((approved / total) * 100 * 10) / 10, slaCompliance: Math.round((within48h / total) * 100), issueResolutionRate: Math.round((issuesResolved / total) * 100) })
+      } catch (err) {
+        // ignore
+      }
+    }
+    load()
+  }, [token, role, notifications])
+
   const openShipmentModal = (shipment: any) => {
     setSelectedShipment(shipment)
+    setSelectedShipmentStatus(shipment.status)
+    setShipmentLocationInput('')
+    setShipmentNotesInput('')
     setIsShipmentUpdateModalOpen(true)
+  }
+
+  const allowedTransitions: Record<string, string[]> = {
+    'Pending Pickup': ['Pending Pickup', 'In Transit'],
+    'In Transit': ['In Transit', 'Customs Clearing', 'Delivered'],
+    'Customs Clearing': ['Customs Clearing', 'In Transit', 'Delivered'],
+    'Delivered': ['Delivered'],
+    'Pending': ['Pending', 'Pending Pickup', 'In Transit'],
+  }
+
+  const handleConfirmShipmentUpdate = () => {
+    if (!selectedShipment || !selectedShipmentStatus) return
+    const allowed = allowedTransitions[selectedShipment.status] || Object.keys(allowedTransitions)
+    if (!allowed.includes(selectedShipmentStatus)) {
+      toast.error('Invalid status transition. Please choose the next valid stage.')
+      return
+    }
+
+    // Map UI statuses to order statuses
+    const statusMap: Record<string, string> = {
+      'Pending': 'PROCESSING',
+      'Pending Pickup': 'PROCESSING',
+      'In Transit': 'SHIPPED',
+      'Customs Clearing': 'SHIPPED',
+      'Delivered': 'DELIVERED',
+    }
+    const mapped = statusMap[selectedShipmentStatus] || selectedShipmentStatus
+
+    const base = (process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, '') || 'http://localhost:4000/api/v1'
+    fetch(`${base}/orders/${selectedShipment.order}/status`, { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: mapped }) })
+      .then(async (res) => {
+        if (!res.ok) throw new Error('Update failed')
+        const body = await res.json()
+        const updated = body.data
+        setShipments((prev) => prev.map((s) => (s.id === selectedShipment.id ? { ...s, status: updated.status } : s)))
+        toast.success('Shipment status updated and customer notified.')
+        setIsShipmentUpdateModalOpen(false)
+      })
+      .catch(() => {
+        toast.error('Failed to update shipment status')
+      })
   }
 
   const handleMediaUpload = (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || [])
     if (!files.length) return
-    setUploadedMediaFiles((prev) => [...prev, ...files])
+    handleFilesAdded(files)
+  }
+
+  const handleFilesAdded = async (files: File[]) => {
+    const MAX_MB = 50
+    const added: any[] = []
+    for (const file of files) {
+      const sizeMB = file.size / (1024 * 1024)
+      const type = file.type
+      const ext = (file.name.split('.').pop() || '').toLowerCase()
+      const threeDExts = ['gltf', 'glb', 'obj', 'fbx', 'stl', 'ply', 'usdz']
+      // Basic type whitelist, include common 3D extensions
+      const allowed = /^(image|video)\//.test(type) || threeDExts.includes(ext)
+      if (!allowed) {
+        toast.error(`${file.name}: Unsupported file type`)
+        continue
+      }
+      if (sizeMB > MAX_MB) {
+        toast.error(`${file.name}: File exceeds ${MAX_MB}MB limit`)
+        continue
+      }
+
+      let finalFile: File = file
+      // Simple image compression for large images
+      if (/^image\//.test(type) && sizeMB > 5) {
+        try {
+          // compress image
+          // eslint-disable-next-line no-await-in-loop
+          finalFile = await compressImage(file, 0.8)
+        } catch (e) {
+          // fallback to original
+        }
+      }
+
+      const previewUrl = URL.createObjectURL(finalFile)
+      const is3D = threeDExts.includes(ext)
+      added.push({ file: finalFile, name: finalFile.name, size: finalFile.size, type: finalFile.type, previewUrl, status: 'pending', progress: 0, is3D, ext })
+    }
+    if (added.length) setUploadedMediaFiles((prev) => [...prev, ...added])
+  }
+
+  const compressImage = (file: File, quality = 0.8): Promise<File> => {
+    return new Promise((resolve, reject) => {
+      try {
+        const img = new Image()
+        img.onload = () => {
+          const canvas = document.createElement('canvas')
+          const maxW = 1920
+          const scale = Math.min(1, maxW / img.width)
+          canvas.width = Math.round(img.width * scale)
+          canvas.height = Math.round(img.height * scale)
+          const ctx = canvas.getContext('2d')!
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) return resolve(file)
+              const compressed = new File([blob], file.name, { type: 'image/jpeg' })
+              resolve(compressed)
+            },
+            'image/jpeg',
+            quality,
+          )
+        }
+        img.onerror = () => reject(new Error('Image load failed'))
+        img.src = URL.createObjectURL(file)
+      } catch (err) {
+        reject(err)
+      }
+    })
+  }
+
+  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    setDragActive(false)
+    const files = Array.from(e.dataTransfer.files || [])
+    if (!files.length) return
+    handleFilesAdded(files)
+  }
+
+  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    setDragActive(true)
+  }
+
+  const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    setDragActive(false)
   }
 
   const removeUploadedMedia = (fileName: string) => {
-    setUploadedMediaFiles((prev) => prev.filter((file) => file.name !== fileName))
+    setUploadedMediaFiles((prev) => prev.filter((m) => m.name !== fileName))
   }
 
-  const handleSubmitVerification = () => {
+  const uploadFile = (mediaItem: any): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const fd = new FormData()
+      fd.append('files', mediaItem.file)
+      const xhr = new XMLHttpRequest()
+      const base = (process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, '') || 'http://localhost:4000/api/v1'
+      xhr.open('POST', `${base}/uploads`)
+      xhr.withCredentials = true
+      if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+      
+      xhr.upload.onprogress = (ev) => {
+        if (ev.lengthComputable) {
+          const pct = Math.round((ev.loaded / ev.total) * 100)
+          setUploadedMediaFiles((prev) => prev.map((m) => (m.name === mediaItem.name ? { ...m, progress: pct, status: 'uploading' } : m)))
+        }
+      }
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          setUploadedMediaFiles((prev) => prev.map((m) => (m.name === mediaItem.name ? { ...m, status: 'uploaded', progress: 100, uploadedAt: new Date().toISOString() } : m)))
+          try {
+            const body = JSON.parse(xhr.responseText)
+            // body.data is an array of created media records
+            const created = Array.isArray(body.data) ? body.data : []
+            resolve(created[0]?.url || mediaItem.name)
+          } catch {
+            resolve(mediaItem.name)
+          }
+        } else {
+          setUploadedMediaFiles((prev) => prev.map((m) => (m.name === mediaItem.name ? { ...m, status: 'error', error: `Upload failed (${xhr.status})` } : m)))
+          reject(new Error('Upload failed'))
+        }
+      }
+      xhr.onerror = () => {
+        setUploadedMediaFiles((prev) => prev.map((m) => (m.name === mediaItem.name ? { ...m, status: 'error', error: 'Network error' } : m)))
+        reject(new Error('Network error'))
+      }
+      xhr.send(fd)
+    })
+  }
+
+  const handleRetryUpload = async (mediaItem: any) => {
+    setUploadedMediaFiles((prev) => prev.map((m) => (m.name === mediaItem.name ? { ...m, status: 'pending', progress: 0 } : m)))
+    try {
+      await uploadFile(mediaItem)
+      toast.success(`${mediaItem.name} uploaded`)
+    } catch (e) {
+      toast.error(`${mediaItem.name} upload failed`)
+    }
+  }
+
+  // duplicate removed earlier
+
+  const handleSubmitVerification = async () => {
     if (!verificationForm.measurements.trim()) {
       setVerificationErrors({ measurements: 'Measurements are required.' })
       toast.error('Please fill in mandatory measurements before submission.')
       return
     }
+    // Upload any pending media
+    const uploadedUrls: string[] = []
+    for (const media of uploadedMediaFiles) {
+      if (media.status === 'uploaded') {
+        uploadedUrls.push(media.uploadedUrl || media.name)
+        continue
+      }
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        const url = await uploadFile(media)
+        uploadedUrls.push(url)
+      } catch (e) {
+        toast.error(`Failed to upload ${media.name}. Please retry.`)
+        return
+      }
+    }
 
-    const metadataPayload = {
-      draftStatus: 'Product Draft',
+    const base = (process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, '') || 'http://localhost:4000/api/v1'
+    try {
+      // 1. Update draft with agent inputs
+      const updateDraftRes = await fetch(`${base}/verifications/products/drafts/${selectedTask?.id}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          dimensions: { measurements: verificationForm.measurements },
+          materials: verificationForm.materials ? verificationForm.materials.split(',').map((s) => s.trim()).filter(Boolean) : [],
+          culturalMetadata: { notes: verificationForm.culturalNotes },
+          extensionData: { suggestedPricing: verificationForm.suggestedPricing, mediaFiles: uploadedUrls }
+        })
+      });
+      
+      if (!updateDraftRes.ok) throw new Error('Failed to update draft with verification data');
+
+      // 2. Submit the review decision
+      const reviewRes = await fetch(`${base}/verifications/products/drafts/${selectedTask?.id}/review`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ decision: 'APPROVE', notes: verificationForm.culturalNotes || '' })
+      });
+      
+      if (!reviewRes.ok) throw new Error('Failed to submit review decision');
+      
+      const body = await reviewRes.json();
+      const draft = body.data?.draft || body.data;
+
+      // Add created draft to local list
+      if (draft) setDrafts((prev) => [draft, ...prev])
+      setVerificationTasksData((prev) => prev.map((task) => (task.id === selectedTask?.id ? { ...task, status: 'Completed' } : task)))
+      toast.success('Verification submitted. Product Draft updated and marked as Verified.')
+      setIsVerificationModalOpen(false)
+      setSelectedDraft(draft)
+      setIsDraftModalOpen(true)
+    } catch (e) {
+      console.error(e)
+      toast.error('Failed to submit verification')
+    }
+  }
+
+  const saveDraft = () => {
+    const draft = {
+      id: `D-${Date.now()}`,
       linkedSampleId: selectedTask?.id,
-      sampleStatusUpdate: 'Verified',
-      submittedAt: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
       agentInput: {
         measurements: verificationForm.measurements,
         materials: verificationForm.materials,
         culturalNotes: verificationForm.culturalNotes,
         suggestedPricing: verificationForm.suggestedPricing,
-        mediaFiles: uploadedMediaFiles.map((file) => file.name),
+        mediaFiles: uploadedMediaFiles.map((m) => m.name),
       },
     }
-
-    setVerificationTasksData((prev) =>
-      prev.map((task) => (task.id === selectedTask?.id ? { ...task, status: 'Completed' } : task)),
-    )
-
-    console.log('Verification submission metadata:', metadataPayload)
-    toast.success('Verification submitted. Product Draft saved and sample marked as Verified.')
-    setIsVerificationModalOpen(false)
+    setDrafts((prev) => [draft, ...prev])
+    toast.success('Draft saved locally')
+    setSelectedDraft(draft)
+    setIsDraftModalOpen(true)
   }
+
 
   return (
     <div className="min-h-screen bg-background flex flex-col font-inter">
@@ -182,20 +505,7 @@ export default function AgentDashboard() {
             <p className="font-inter text-muted-foreground">Manage verification tasks and shipment logistics</p>
           </div>
           
-          {/* Account Activation / Profile Completion Banners */}
-          {accountStatus === 'pending_activation' && (
-            <div className="mb-6 p-4 bg-secondary/10 border border-secondary rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div>
-                <h3 className="font-aeonik text-sm uppercase tracking-[0.12em] font-bold text-secondary flex items-center gap-2">
-                  <Lock className="w-4 h-4" /> Account Activation Required
-                </h3>
-                <p className="text-sm text-muted-foreground mt-1">Please confirm your password to complete account verification.</p>
-              </div>
-              <Button onClick={() => setIsActivationModalOpen(true)} className="bg-secondary text-secondary-foreground hover:bg-secondary/90">
-                Setup Password
-              </Button>
-            </div>
-          )}
+
 
           {accountStatus === 'incomplete_profile' && (
             <div className="mb-6 p-4 bg-primary/10 border border-primary rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -231,9 +541,10 @@ export default function AgentDashboard() {
 
           {/* Tabs */}
           <Tabs defaultValue="verification" className="w-full">
-            <TabsList className="grid w-full grid-cols-3 h-auto md:h-10 gap-2 mb-8 bg-transparent md:bg-muted p-0 md:p-1">
+            <TabsList className="grid w-full grid-cols-4 h-auto md:h-10 gap-2 mb-8 bg-transparent md:bg-muted p-0 md:p-1">
               <TabsTrigger value="verification" className="font-aeonik text-xs uppercase tracking-[0.12em] bg-muted md:bg-transparent">Verification Tasks</TabsTrigger>
               <TabsTrigger value="shipments" className="font-aeonik text-xs uppercase tracking-[0.12em] bg-muted md:bg-transparent">Shipments</TabsTrigger>
+              <TabsTrigger value="verified" className="font-aeonik text-xs uppercase tracking-[0.12em] bg-muted md:bg-transparent">Verified Products</TabsTrigger>
               <TabsTrigger value="reports" className="font-aeonik text-xs uppercase tracking-[0.12em] bg-muted md:bg-transparent">My Reports</TabsTrigger>
             </TabsList>
 
@@ -318,6 +629,40 @@ export default function AgentDashboard() {
               </div>
             </TabsContent>
 
+            {/* Verified Products Tab */}
+            <TabsContent value="verified" className="space-y-4">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="font-aeonik text-lg uppercase tracking-[0.12em] font-bold">Verified Products</h2>
+                <Button variant="outline" onClick={() => { /* potential export */ }}>Export</Button>
+              </div>
+
+              {drafts.length === 0 ? (
+                <Card className="p-6">
+                  <p className="text-sm text-muted-foreground">No verified products yet. Submit a verification to create a draft.</p>
+                </Card>
+              ) : (
+                <div className="space-y-3">
+                  {drafts.map((d) => (
+                    <Card key={d.id} className="p-4 flex items-center justify-between">
+                      <div>
+                        <div className="text-xs text-muted-foreground font-mono">{d.id}</div>
+                        <div className="font-semibold">Sample: {d.linkedSampleId}</div>
+                        <div className="text-sm text-muted-foreground">Submitted: {new Date(d.submittedAt || d.createdAt || Date.now()).toLocaleString()}</div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button variant="ghost" size="sm" onClick={() => { setSelectedDraft(d); setIsDraftModalOpen(true); }}>
+                          View Draft
+                        </Button>
+                        <Button size="sm" onClick={() => { /* promote to product flow */ toast.info('Promote flow not implemented') }}>
+                          Promote
+                        </Button>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+
             {/* Reports & Metrics Tab */}
             <TabsContent value="reports" className="space-y-6">
               <div className="flex justify-between items-center mb-4">
@@ -329,9 +674,9 @@ export default function AgentDashboard() {
                 <Card className="p-6">
                   <h3 className="font-aeonik text-xs uppercase tracking-[0.12em] text-muted-foreground mb-4">Verification Volume (Monthly)</h3>
                   <div className="h-48 flex items-end gap-2 bg-muted/10 p-4 rounded-lg border border-border/50">
-                    {/* Simulated Bar Chart */}
-                    {[40, 60, 45, 80, 55, 90, 75].map((height, idx) => (
-                      <div key={idx} className="flex-1 bg-primary/80 hover:bg-primary transition-all rounded-t-sm relative group" style={{ height: `${height}%` }}>
+                    {/* Monthly verification volume (last 7 months) */}
+                    {(monthlyVolume.length ? monthlyVolume : [0,0,0,0,0,0,0]).map((height, idx) => (
+                      <div key={idx} className="flex-1 bg-primary/80 hover:bg-primary transition-all rounded-t-sm relative group" style={{ height: `${Math.min(100, height)}%` }}>
                         <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-xs opacity-0 group-hover:opacity-100">{height}</span>
                       </div>
                     ))}
@@ -344,28 +689,28 @@ export default function AgentDashboard() {
                     <div>
                       <div className="flex justify-between text-sm mb-1">
                         <span>Accuracy Rate</span>
-                        <span className="font-bold">98.5%</span>
+                        <span className="font-bold">{performanceMetrics.accuracyRate}%</span>
                       </div>
                       <div className="w-full bg-muted rounded-full h-2">
-                        <div className="bg-green-500 h-2 rounded-full" style={{ width: '98.5%' }}></div>
+                        <div className="bg-green-500 h-2 rounded-full" style={{ width: `${performanceMetrics.accuracyRate}%` }}></div>
                       </div>
                     </div>
                     <div>
                       <div className="flex justify-between text-sm mb-1">
                         <span>SLA Compliance (48h)</span>
-                        <span className="font-bold">92%</span>
+                        <span className="font-bold">{performanceMetrics.slaCompliance}%</span>
                       </div>
                       <div className="w-full bg-muted rounded-full h-2">
-                        <div className="bg-secondary h-2 rounded-full" style={{ width: '92%' }}></div>
+                        <div className="bg-secondary h-2 rounded-full" style={{ width: `${performanceMetrics.slaCompliance}%` }}></div>
                       </div>
                     </div>
                     <div>
                       <div className="flex justify-between text-sm mb-1">
                         <span>Issue Resolution Rate</span>
-                        <span className="font-bold">88%</span>
+                        <span className="font-bold">{performanceMetrics.issueResolutionRate}%</span>
                       </div>
                       <div className="w-full bg-muted rounded-full h-2">
-                        <div className="bg-primary h-2 rounded-full" style={{ width: '88%' }}></div>
+                        <div className="bg-primary h-2 rounded-full" style={{ width: `${performanceMetrics.issueResolutionRate}%` }}></div>
                       </div>
                     </div>
                   </div>
@@ -512,7 +857,12 @@ export default function AgentDashboard() {
                 <h3 className="font-aeonik text-sm uppercase tracking-[0.12em] font-bold border-b border-border pb-2">Professional Media</h3>
                 <div className="space-y-2">
                   <label className="text-xs font-semibold text-muted-foreground uppercase">High-Res Photos & 3D Scans</label>
-                  <div className="border-2 border-dashed border-border rounded-lg p-8 text-center bg-muted/10 transition-colors hover:bg-muted/30 cursor-pointer flex flex-col items-center justify-center min-h-[220px]">
+                  <div
+                    onDrop={handleDrop}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    className={`border-2 border-dashed border-border rounded-lg p-8 text-center bg-muted/10 transition-colors ${dragActive ? 'ring-2 ring-primary/40 bg-muted/20' : 'hover:bg-muted/30'} cursor-pointer flex flex-col items-center justify-center min-h-[220px]`}
+                  >
                     <div className="flex gap-2 mb-3">
                       <Camera className="w-6 h-6 text-muted-foreground" />
                       <Upload className="w-6 h-6 text-muted-foreground" />
@@ -524,33 +874,44 @@ export default function AgentDashboard() {
                       type="file"
                       className="hidden"
                       multiple
-                      accept=".jpg,.jpeg,.png,.mp4,.gltf"
+                      accept=".jpg,.jpeg,.png,.mp4,.gltf,.glb,.obj,.fbx,.stl,.ply,.usdz"
                       onChange={handleMediaUpload}
                     />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => document.getElementById('verification-media-upload')?.click()}
-                    >
-                      Browse Files
-                    </Button>
-                  </div>
-                  {uploadedMediaFiles.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-xs font-semibold text-muted-foreground uppercase">Uploaded Media</p>
-                      <div className="space-y-1">
-                        {uploadedMediaFiles.map((file) => (
-                          <div key={file.name} className="flex items-center justify-between bg-muted/30 px-3 py-2 rounded border border-border">
-                            <span className="text-xs truncate max-w-[220px]">{file.name}</span>
-                            <Button type="button" variant="ghost" size="sm" onClick={() => removeUploadedMedia(file.name)}>
-                              Remove
-                            </Button>
+                    <Button type="button" variant="outline" onClick={() => (document.getElementById('verification-media-upload') as HTMLInputElement)?.click()}>Select Files</Button>
+
+                    {uploadedMediaFiles.length > 0 && (
+                      <div className="mt-4 space-y-2">
+                        {uploadedMediaFiles.map((m) => (
+                          <div key={m.name} className="flex items-center justify-between p-2 border rounded bg-muted/10">
+                            <div className="flex items-center gap-3">
+                              <div className="w-16 h-12 bg-muted/20 rounded overflow-hidden flex items-center justify-center">
+                                {m.previewUrl ? <img src={m.previewUrl} alt={m.name} className="object-cover w-full h-full" /> : <span className="text-xs">{m.name}</span>}
+                              </div>
+                              <div className="text-sm">
+                                <div className="font-medium">{m.name}</div>
+                                <div className="text-xs text-muted-foreground">{m.size ? `${Math.round(m.size/1024)} KB` : ''}</div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {m.status === 'uploading' && (
+                                <div className="w-36 bg-muted rounded h-2 overflow-hidden">
+                                  <div className="bg-primary h-2" style={{ width: `${m.progress || 0}%` }} />
+                                </div>
+                              )}
+                              {m.status === 'error' && <span className="text-destructive text-xs mr-2">{m.error}</span>}
+                              {m.status === 'error' && (
+                                <Button size="sm" variant="ghost" onClick={() => handleRetryUpload(m)}>Retry</Button>
+                              )}
+                              {m.is3D && (
+                                <a href={m.previewUrl} download={m.name} className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-8 px-3">Download</a>
+                              )}
+                              <Button size="sm" variant="ghost" onClick={() => removeUploadedMedia(m.name)}>Remove</Button>
+                            </div>
                           </div>
                         ))}
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -572,9 +933,7 @@ export default function AgentDashboard() {
                 Flag Issue
               </Button>
               <div className="flex gap-2">
-                <DialogClose asChild>
-                  <Button variant="outline">Save Draft</Button>
-                </DialogClose>
+                <Button variant="outline" onClick={saveDraft}>Save Draft</Button>
                 <Button onClick={handleSubmitVerification}>Submit Verification</Button>
               </div>
             </div>
@@ -595,12 +954,14 @@ export default function AgentDashboard() {
             </div>
             <div className="space-y-2">
               <label className="text-xs font-semibold text-muted-foreground uppercase">New Status</label>
-              <select className="w-full p-3 border border-border rounded bg-background" defaultValue={selectedShipment?.status}>
-                <option value="Pending Pickup">Pending Pickup</option>
-                <option value="In Transit">In Transit</option>
-                <option value="Customs Clearing">Customs Clearing</option>
-                <option value="Delivered">Delivered</option>
-                <option value="Issue Flagged">Issue Flagged</option>
+              <select
+                className="w-full p-3 border border-border rounded bg-background"
+                value={selectedShipmentStatus || selectedShipment?.status}
+                onChange={(e) => setSelectedShipmentStatus(e.target.value)}
+              >
+                {(allowedTransitions[selectedShipment?.status] || ['Pending Pickup', 'In Transit', 'Customs Clearing', 'Delivered', 'Issue Flagged']).map((opt) => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
               </select>
             </div>
             <div className="space-y-2">
@@ -615,13 +976,54 @@ export default function AgentDashboard() {
               <DialogClose asChild>
                 <Button variant="outline">Cancel</Button>
               </DialogClose>
-              <Button>Confirm Update</Button>
+              <Button onClick={handleConfirmShipmentUpdate}>Confirm Update</Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
 
       <Footer />
+
+      {/* Draft Viewer Modal */}
+      <Dialog open={isDraftModalOpen} onOpenChange={setIsDraftModalOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-aeonik text-lg uppercase tracking-[0.12em]">Product Draft</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            {selectedDraft ? (
+              <div>
+                <p className="text-sm text-muted-foreground">Draft ID: <span className="font-medium text-foreground">{selectedDraft.id}</span></p>
+                <p className="text-sm text-muted-foreground">Linked Sample: <span className="font-medium text-foreground">{selectedDraft.linkedSampleId}</span></p>
+                <div className="mt-3 space-y-2">
+                  <h4 className="font-semibold">Agent Input</h4>
+                  <p className="text-sm"><strong>Measurements:</strong> {selectedDraft.agentInput?.measurements || selectedDraft.agentInput?.measurements}</p>
+                  <p className="text-sm"><strong>Materials:</strong> {selectedDraft.agentInput?.materials}</p>
+                  <p className="text-sm"><strong>Notes:</strong> {selectedDraft.agentInput?.culturalNotes}</p>
+                  <p className="text-sm"><strong>Pricing:</strong> {selectedDraft.agentInput?.suggestedPricing}</p>
+                </div>
+                {selectedDraft.agentInput?.mediaFiles && (
+                  <div className="mt-3">
+                    <h5 className="font-medium">Media</h5>
+                    <div className="flex gap-2 mt-2 flex-wrap">
+                      {selectedDraft.agentInput.mediaFiles.map((m: string) => (
+                        <div key={m} className="p-2 border rounded bg-muted/10 text-xs">{m}</div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">No draft selected</p>
+            )}
+            <div className="flex justify-end gap-2 pt-2">
+              <DialogClose asChild>
+                <Button variant="outline">Close</Button>
+              </DialogClose>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <style jsx>{`
         .font-druk-medium { font-family: var(--font-druk-medium), sans-serif; }

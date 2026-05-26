@@ -5,7 +5,7 @@ const AUTH_COOKIE_NAME = "auth_token";
 
 const ROLE_ROUTE_RULES: Array<{ prefix: string; role: string }> = [
   { prefix: "/admin", role: "ADMIN" },
-  { prefix: "/agent", role: "VERIFICATION_AGENT" },
+  { prefix: "/verification_agent", role: "VERIFICATION_AGENT" },
   { prefix: "/artisan", role: "ARTISAN" },
   { prefix: "/customer", role: "CUSTOMER" },
 ];

@@ -22,6 +22,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useState, useEffect, useRef, Suspense } from "react";
+import { useRouter } from 'next/navigation'
 import { gsap } from "gsap";
 import { useAuth } from "@/lib/auth-context";
 import { useCart } from "@/lib/cart-context";
@@ -66,6 +67,7 @@ export function DashboardHeader({
   const isMountedRef = useRef(true);
 
   const { role, logout } = useAuth();
+  const router = useRouter()
   const { cartCount } = useCart();
   const isLoggedIn = Boolean(role);
   const rolePath = role ? role.toLowerCase() : "customer";
@@ -313,12 +315,10 @@ export function DashboardHeader({
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-44">
-                    <Link href={profileHref}>
-                      <DropdownMenuItem className="cursor-pointer">
-                        <User className="w-4 h-4 mr-2" />
-                        Profile
-                      </DropdownMenuItem>
-                    </Link>
+                    <DropdownMenuItem className="cursor-pointer" onClick={() => router.push(profileHref)}>
+                      <User className="w-4 h-4 mr-2" />
+                      Profile
+                    </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     {isLoggedIn ? (
                       <DropdownMenuItem

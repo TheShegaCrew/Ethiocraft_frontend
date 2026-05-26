@@ -8,7 +8,7 @@ export type AppFeature =
 
 const DASHBOARD_PATH_BY_ROLE: Record<Exclude<UserRole, null>, string> = {
   ADMIN: "/admin/dashboard",
-  VERIFICATION_AGENT: "/agent/dashboard",
+  VERIFICATION_AGENT: "/verification_agent/dashboard",
   ARTISAN: "/artisan/dashboard",
   CUSTOMER: "/customer/dashboard",
 };
