@@ -4,16 +4,18 @@ import { Footer } from "@/components/shared/footer";
 import VerifyOtpForm from "./VerifyOtpForm.client";
 
 // Server component page — interactive form lives in a client subcomponent.
-export default function VerifyOtpPage() {
+export default function VerifyOtpPage({ searchParams }: { searchParams?: { email?: string } }) {
+  const initialEmail = (searchParams && searchParams.email) ? String(searchParams.email) : "";
+
   return (
     <div className="min-h-screen bg-[#FAFAF9] text-[#1C1C1C] font-inter flex flex-col">
       <Suspense fallback={<div />}>
         <Header />
       </Suspense>
       <main>
-        <VerifyOtpForm />
+        <VerifyOtpForm initialEmail={initialEmail} />
       </main>
       <Footer />
     </div>
   );
-  }
+}

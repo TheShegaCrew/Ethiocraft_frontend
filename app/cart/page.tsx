@@ -156,7 +156,7 @@ export default function App() {
                         </div>
 
                         <div className="flex flex-col items-end justify-between">
-                          <p className="text-lg font-semibold md:text-xl">${(item.price * item.quantity).toFixed(2)}</p>
+                          <p className="text-lg font-semibold md:text-xl">ETB {(item.price * item.quantity).toFixed(2)}</p>
                           <button
                             onClick={() => removeItem(item.id, item.name)}
                             className="font-aeonik text-xs uppercase tracking-[0.08em] text-[#9f3b3b] opacity-0 transition-opacity duration-300 hover:text-[#7f2e2e] group-hover:opacity-100"
@@ -182,15 +182,19 @@ export default function App() {
                 <dl className="font-aeonik mt-7 space-y-3 text-sm">
                   <div className="flex items-center justify-between">
                     <dt className="text-[#656056]">Subtotal</dt>
-                    <dd>${subtotal.toFixed(2)}</dd>
+                    <dd>ETB {subtotal.toFixed(2)}</dd>
                   </div>
                   {/* <div className="flex items-center justify-between">
                     <dt className="text-[#656056]">Shipping</dt>
                     <dd>{shipping === 0 ? 'Free' : `$${shipping.toFixed(2)}`}</dd>
                   </div> */}
+                    <div className="flex items-center justify-between">
+                      <dt className="text-[#656056]">Shipping</dt>
+                      <dd>{shipping === 0 ? 'Free' : `ETB ${shipping.toFixed(2)}`}</dd>
+                    </div>
                   <div className="flex items-center justify-between">
                     <dt className="text-[#656056]">Tax</dt>
-                    <dd>${tax.toFixed(2)}</dd>
+                    <dd>ETB {tax.toFixed(2)}</dd>
                   </div>
                 </dl>
 
@@ -199,7 +203,7 @@ export default function App() {
                     <p className="font-aeonik text-sm uppercase tracking-[0.1em] text-[#666055]">
                       Total
                     </p>
-                    <p className="font-aeonik text-2xl font-semibold">${total.toFixed(2)}</p>
+                    <p className="font-aeonik text-2xl font-semibold">ETB {total.toFixed(2)}</p>
                   </div>
 
                 <Button asChild className="w-full bg-primary text-primary-foreground hover:bg-primary/90 h-12 font-medium">

@@ -507,7 +507,7 @@ export default function AgentDashboard() {
           
 
 
-          {accountStatus === 'incomplete_profile' && (
+          {/* {accountStatus === 'incomplete_profile' && (
             <div className="mb-6 p-4 bg-primary/10 border border-primary rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
                 <h3 className="font-aeonik text-sm uppercase tracking-[0.12em] font-bold text-primary flex items-center gap-2">
@@ -519,7 +519,7 @@ export default function AgentDashboard() {
                 Complete Profile
               </Button>
             </div>
-          )}
+          )} */}
 
           {/* Task Stats */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
