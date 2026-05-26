@@ -228,7 +228,7 @@ export default function App() {
             data-reveal-id="hero-cta"
           >
             <a
-              href="/auth/register/artisan"
+              href="/auth/register/artisan/register"
               className="inline-flex items-center gap-2 border border-[#C6A75E] bg-[#C6A75E] px-6 py-3 text-sm text-[#1C1C1C] transition duration-300 hover:-translate-y-0.5 hover:bg-[#d2b472]"
               style={{ fontFamily: "Aeonik, Inter, sans-serif" }}
             >

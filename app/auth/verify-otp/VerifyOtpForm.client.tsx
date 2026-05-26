@@ -1,9 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from '@/components/ui/button'
-import { Footer } from '@/components/shared/footer'
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000/api/v1";
 
@@ -15,8 +13,24 @@ export default function VerifyOtpForm({ initialEmail = "" }: { initialEmail?: st
   const [successMessage, setSuccessMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isResending, setIsResending] = useState(false);
+  const [role, setRole] = useState<string | null>(null);
 
   const isValidCode = useMemo(() => /^\d{6}$/.test(code), [code]);
+
+  useEffect(() => {
+    // If server didn't provide an initialEmail, try to read it from the URL query
+    if (!initialEmail && typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const e = params.get("email");
+      if (e) setEmail(String(decodeURIComponent(e)));
+    }
+
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const r = params.get("role");
+      if (r) setRole(String(r).toUpperCase());
+    }
+  }, [initialEmail]);
 
   const handleVerify = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -48,11 +62,15 @@ export default function VerifyOtpForm({ initialEmail = "" }: { initialEmail?: st
         return;
       }
 
-      setSuccessMessage('Email verified successfully. Redirecting to sign in...');
+      setSuccessMessage("Email verified successfully. Redirecting...");
       setTimeout(() => {
-        router.push('/auth/login');
-      }, 1500);
-    } catch {
+        if (role === "ARTISAN") {
+          router.push("/artisan/landing");
+        } else {
+          router.push("/auth/login");
+        }
+      }, 900);
+    } catch (err) {
       setErrorMessage("Unable to reach the server. Please try again.");
     } finally {
       setIsSubmitting(false);
@@ -83,7 +101,7 @@ export default function VerifyOtpForm({ initialEmail = "" }: { initialEmail?: st
       }
 
       setSuccessMessage("OTP sent successfully. Please check your email.");
-    } catch {
+    } catch (err) {
       setErrorMessage("Unable to reach the server. Please try again.");
     } finally {
       setIsResending(false);
@@ -99,14 +117,19 @@ export default function VerifyOtpForm({ initialEmail = "" }: { initialEmail?: st
         <form className="space-y-4" onSubmit={handleVerify}>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full border border-[#ddd6c9] rounded-lg px-3 py-2 text-sm outline-none focus:border-[#C6A75E]"
-              placeholder="you@example.com"
-            />
+            {email.trim() ? (
+              <div className="w-full border border-[#ddd6c9] rounded-lg px-3 py-2 text-sm bg-gray-50">{email}</div>
+            ) : (
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className={`w-full border border-[#ddd6c9] rounded-lg px-3 py-2 text-sm outline-none focus:border-[#C6A75E]`}
+                placeholder="you@example.com"
+              />
+            )}
           </div>
+
           <div>
             <label className="block text-xs text-gray-500 mb-1">OTP Code</label>
             <input

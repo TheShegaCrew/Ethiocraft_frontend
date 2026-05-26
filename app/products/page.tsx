@@ -635,8 +635,8 @@ function ProductPageContent() {
             className="mb-3 w-full"
           />
           <div className="flex items-center justify-between text-sm text-[#1c1c1c]">
-            <span>${priceRange[0]}</span>
-            <span>${priceRange[1]}</span>
+            <span>ETB {priceRange[0].toLocaleString()}</span>
+            <span>ETB {priceRange[1].toLocaleString()}</span>
           </div>
         </div>
 
@@ -1058,7 +1058,7 @@ function ProductPageContent() {
                             className="text-sm font-medium"
                             style={{ fontFamily: "Inter, sans-serif" }}
                           >
-                            ${product.price}
+                            ETB {Number(product.price).toLocaleString()}
                           </p>
                           <Button
                             onClick={(event) => handleAddToCart(event, product)}

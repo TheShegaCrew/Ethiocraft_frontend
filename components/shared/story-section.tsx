@@ -211,7 +211,7 @@ export function StorySection() {
        >
 
   <h2 className="panel-3-title text-5xl mt-20 md:text-5xl font-druk-medium uppercase mb-5 text-[#3E2723]">
-    Meet the Makers
+    Know Your Culture
   </h2>
 
   <div className="grid grid-cols-1 md:grid-cols-3 gap-12 items-center">
@@ -234,7 +234,7 @@ export function StorySection() {
         </h3>
 
         <p className="font-inter text-lg text-[#1C1C1C]/80 max-w-md">
-          Each basket is woven over days using techniques passed through generations.
+          Each basket is handcrafted using traditional techniques that reflect the richness of our culture.
         </p>
       </div>
     </div>

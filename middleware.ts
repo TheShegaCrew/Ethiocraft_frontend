@@ -10,7 +10,16 @@ const ROLE_ROUTE_RULES: Array<{ prefix: string; role: string }> = [
   { prefix: "/customer", role: "CUSTOMER" },
 ];
 
-const PUBLIC_PREFIXES = ["/", "/auth", "/products", "/marketplace", "/forbidden"];
+// Routes that should be accessible without authentication.
+// Add specific artisan landing path to allow public access while keeping other /artisan/* routes guarded.
+const PUBLIC_PREFIXES = [
+  "/",
+  "/auth",
+  "/products",
+  "/marketplace",
+  "/forbidden",
+  "/artisan/landing",
+];
 
 function isPublicRoute(pathname: string): boolean {
   if (pathname === "/") return true;

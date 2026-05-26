@@ -506,7 +506,7 @@ export default function App() {
             <h1 className="font-druk-medium mt-3 text-lg uppercase tracking-[0.04em] md:text-5xl">
               {product.name}
             </h1>
-            <p className="mt-5 text-3xl font-semibold">${product.price}</p>
+            <p className="mt-5 text-3xl font-semibold">ETB {Number(product.price).toLocaleString()}</p>
             <p className="mt-5 max-w-[44ch] text-[15px] leading-relaxed text-[#4f4b45]">
               {product.shortDescription}
             </p>
@@ -625,12 +625,12 @@ export default function App() {
               </p>
               <p>{product.material}</p>
             </div>
-            <div className="flex flex-col gap-1 border-b border-[#e4dfd5] pb-4 md:flex-row md:items-baseline md:gap-10">
+            {/* <div className="flex flex-col gap-1 border-b border-[#e4dfd5] pb-4 md:flex-row md:items-baseline md:gap-10">
               <p className="font-aeonik w-40 text-[10px] uppercase tracking-[0.12em] text-[#767068]">
                 Care
               </p>
               <p>{product.care}</p>
-            </div>
+            </div> */}
           </div>
         </section>
 
@@ -681,7 +681,7 @@ export default function App() {
                   <h3 className="mt-2 text-sm uppercase tracking-[0.05em] transition-colors duration-300 group-hover:text-[#C6A75E] md:text-base">
                     {item.name}
                   </h3>
-                  <p className="mt-2 text-sm">${item.price}</p>
+                  <p className="mt-2 text-sm">ETB {Number(item.price).toLocaleString()}</p>
                 </div>
               </article>
             ))}
