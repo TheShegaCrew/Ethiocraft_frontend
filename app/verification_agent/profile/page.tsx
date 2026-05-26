@@ -95,8 +95,9 @@ export default function AgentProfilePage() {
 
         const firstName = data.firstName || ''
         const lastName = data.lastName || ''
-        const serviceRegions =
-          data.artisanProfile?.region || ''
+        // Prefer default address city for service city
+        const defaultAddr = (data.addresses || []).find((a: any) => a.isDefault) || (data.addresses || [])[0]
+        const serviceRegions = defaultAddr?.city || data.agentProfile?.city  || ''
         // Drop ID upload handling from the profile form
             setForm({
           firstName,
@@ -144,7 +145,7 @@ export default function AgentProfilePage() {
     ) {
       if (!form.serviceRegions.trim()) {
         newErrors.serviceRegions =
-          'Service region is required'
+          'Service city is required'
       }
     }
 
@@ -190,13 +191,13 @@ export default function AgentProfilePage() {
     return Object.keys(newErrors).length === 0
   }
 
-  const handleCancel = () => {
+    const handleCancel = () => {
     if (!original) return
 
     const firstName = original.firstName || ''
     const lastName = original.lastName || ''
-    const serviceRegions =
-      original.artisanProfile?.region || ''
+      const defaultAddr = (original.addresses || []).find((a: any) => a.isDefault) || (original.addresses || [])[0]
+      const serviceRegions = defaultAddr?.city || original.agentProfile?.city || original.artisanProfile?.region || ''
 
     setForm({
       firstName,
@@ -236,53 +237,43 @@ export default function AgentProfilePage() {
       email: form.email.trim(),
     }
 
-    // Only include artisan-specific fields when the user is an artisan
-    if (
-      role &&
-      role.toLowerCase().includes('artisan')
-    ) {
-      payload.artisanProfile = {
-        region: form.serviceRegions,
-      }
-    }
-
+    // For verification agents, persist the city in addresses; for artisans use artisanProfile.region
     try {
+      // First update base user fields
       setSaving(true)
 
-      const res = await fetch(
-        `${base}/users/me`,
-        {
-          method: 'PATCH',
-          credentials: 'include',
-          headers: {
-            'Content-Type':
-              'application/json',
-          },
-          body: JSON.stringify(payload),
-        }
-      )
+      // attach service city to payload for verification agents, or artisan region for artisans
+      if (role && role.toLowerCase().includes('verification')) {
+        payload.agentProfile = { city: form.serviceRegions }
+      }
+      if (role && role.toLowerCase().includes('artisan')) {
+        payload.artisanProfile = { region: form.serviceRegions }
+      }
 
-      if (!res.ok) {
+      const userRes = await fetch(`${base}/users/me`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      if (!userRes.ok) {
         let msg = 'Save failed'
-
         try {
-          const body = await res.json()
+          const body = await userRes.json()
           msg = body.message || body.error || JSON.stringify(body)
-        } catch (e) {
-          try {
-            const text = await res.text()
-            if (text) msg = text
-          } catch {}
-        }
-
-        console.error('Profile save error:', res.status, msg)
+        } catch (e) {}
+        console.error('Profile save error:', userRes.status, msg)
         toast.error(msg)
         return
       }
 
+      // server will persist agentProfile.city into an address when necessary
+
       toast.success('Profile updated successfully')
       setIsEditing(false)
-    } catch {
+    } catch (err) {
+      console.error(err)
       toast.error('Failed to save profile')
     } finally {
       setSaving(false)
@@ -474,8 +465,8 @@ export default function AgentProfilePage() {
 
                     <div className="rounded-2xl border p-5">
                       <p className="text-xs uppercase text-muted-foreground mb-2">
-                        Service Region
-                      </p>
+                          Service City
+                        </p>
 
                       <p className="font-medium">
                         {form.serviceRegions ||
@@ -636,7 +627,7 @@ export default function AgentProfilePage() {
 
                   <div className="md:col-span-2 space-y-2">
                     <label className="text-sm font-medium">
-                      Service Region(s)
+                      Service City(s)
                     </label>
 
                     <input

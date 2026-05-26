@@ -6,6 +6,44 @@ import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
 import { X } from 'lucide-react';
 
+function formatCustomerDisplay(o: any): string {
+  const c = o?.customer;
+  if (!c) return '—';
+  const full = [c.firstName, c.lastName].filter(Boolean).join(' ').trim();
+  if (full) return full;
+  return c.email || '—';
+}
+
+/** Artisan / shop label from order line items (API shape: items[].artisan) */
+function formatOrderOwner(o: any): string {
+  const items = Array.isArray(o?.items) ? o.items : [];
+  const labels: string[] = [];
+  const seen = new Set<string>();
+  for (const it of items) {
+    const a = it?.artisan;
+    if (!a) continue;
+    const shop = a.artisanProfile?.shopName?.trim();
+    const person = [a.firstName, a.lastName].filter(Boolean).join(' ').trim();
+    const label = shop || person || a.email || 'Artisan';
+    if (!seen.has(label)) {
+      seen.add(label);
+      labels.push(label);
+    }
+  }
+  if (labels.length === 0) return '—';
+  if (labels.length === 1) return labels[0];
+  return `${labels[0]} (+${labels.length - 1} more)`;
+}
+
+function formatOrderNameReference(o: any): string {
+  const customerLine = formatCustomerDisplay(o);
+  if (customerLine !== '—') return customerLine;
+  const items = Array.isArray(o?.items) ? o.items : [];
+  const firstTitle = items[0]?.product?.title;
+  if (firstTitle && items.length > 1) return `${firstTitle} (+${items.length - 1} more)`;
+  return firstTitle || '—';
+}
+
 export default function OrdersSection(props: any) {
   const { overview, overviewLoading } = props;
   const orders = props.orders || [];
@@ -17,19 +55,25 @@ export default function OrdersSection(props: any) {
 
   const rows = (orders || []).map((o: any, idx: number) => {
     const id = o?.id ?? o?._id ?? o?.orderId ?? `unknown-${idx + 1}`;
+    const refName = formatOrderNameReference(o);
     const name =
-      o?.title ??
-      o?.productTitle ??
-      o?.product?.title ??
-      o?.customer?.name ??
-      o?.customerName ??
-      '—';
+      refName !== '—'
+        ? refName
+        : (o?.title ??
+          o?.productTitle ??
+          o?.product?.title ??
+          o?.customer?.name ??
+          o?.customerName ??
+          '—');
+    const refOwner = formatOrderOwner(o);
     const owner =
-      o?.owner ??
-      o?.vendor ??
-      (o?.artisan ? `${o.artisan.firstName ?? ''} ${o.artisan.lastName ?? ''}`.trim() : undefined) ??
-      o?.artisan?.artisanProfile?.shopName ??
-      '—';
+      refOwner !== '—'
+        ? refOwner
+        : (o?.owner ??
+          o?.vendor ??
+          (o?.artisan ? `${o.artisan.firstName ?? ''} ${o.artisan.lastName ?? ''}`.trim() : undefined) ??
+          o?.artisan?.artisanProfile?.shopName ??
+          '—');
     const status = o?.status ?? o?.orderStatus ?? o?.state ?? '—';
     const updatedRaw = o?.updatedAt ?? o?.updated ?? o?.modifiedAt ?? o?.publishedAt ?? o?.createdAt;
     const updated = updatedRaw ? new Date(updatedRaw).toLocaleString() : '—';

@@ -26,6 +26,22 @@ import { toast } from 'react-toastify'
 import { useAuth } from '@/lib/auth-context'
 import { useNotifications } from '@/hooks/useNotifications'
 
+const ORDER_STATUS_LABELS: Record<string, string> = {
+  PENDING_PAYMENT: 'Pending Payment',
+  PAID: 'Paid',
+  PROCESSING: 'Processing',
+  SHIPPED: 'In Transit',
+  DELIVERED: 'Delivered',
+  CANCELLED: 'Cancelled',
+}
+
+const AGENT_SHIPMENT_TRANSITIONS: Record<string, string[]> = {
+  PAID: ['PROCESSING'],
+  PROCESSING: ['SHIPPED'],
+  SHIPPED: ['DELIVERED'],
+  DELIVERED: [],
+}
+
 
 export default function AgentDashboard() {
   // Modal States
@@ -48,6 +64,8 @@ export default function AgentDashboard() {
   const [uploadedMediaFiles, setUploadedMediaFiles] = useState<any[]>([])
   const [dragActive, setDragActive] = useState(false)
   const [drafts, setDrafts] = useState<any[]>([])
+  const [agentRegion, setAgentRegion] = useState<string | null>(null)
+  const [agentId, setAgentId] = useState<string | null>(null)
   const [isDraftModalOpen, setIsDraftModalOpen] = useState(false)
   const [selectedDraft, setSelectedDraft] = useState<any>(null)
 
@@ -85,15 +103,21 @@ export default function AgentDashboard() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Completed':
+      case 'DELIVERED':
       case 'Delivered':
         return 'bg-primary text-primary-foreground'
+      case 'SHIPPED':
       case 'In Transit':
         return 'bg-secondary text-secondary-foreground'
+      case 'PROCESSING':
       case 'Pending Pickup':
+      case 'PAID':
         return 'bg-muted text-muted-foreground'
       case 'Pending':
+      case 'PENDING_PAYMENT':
         return 'bg-accent/20 text-accent'
       case 'Issue Flagged':
+      case 'CANCELLED':
         return 'bg-destructive text-destructive-foreground'
       default:
         return 'bg-border text-foreground'
@@ -119,6 +143,8 @@ export default function AgentDashboard() {
     async function load() {
       let drafts: any[] = []
       let orders: any[] = []
+      let regionLocal = ''
+      let agentIdLocal = ''
       try {
         // Profile
         const pres = await fetch(`${base}/users/me`, { credentials: 'include' })
@@ -126,7 +152,15 @@ export default function AgentDashboard() {
           const body = await pres.json()
           const data = body.data || {}
           const fullName = [data.firstName, data.lastName].filter(Boolean).join(' ')
-          const serviceRegions = data.artisanProfile?.region || ''
+          // Prefer default address city for agent service area, fall back to agentProfile/artisanProfile
+          const defaultAddr = (data.addresses || []).find((a: any) => a.isDefault) || (data.addresses || [])[0]
+          const serviceRegions = defaultAddr?.city || data.agentProfile?.city || data.artisanProfile?.region || ''
+          // store agent region to filter shipments
+          setAgentRegion(serviceRegions || null)
+          regionLocal = serviceRegions || ''
+          // store agent id to filter assigned drafts
+          setAgentId(data.id || null)
+          agentIdLocal = data.id || ''
           setAccountStatus(!data.artisanProfile ? 'incomplete_profile' : data.artisanProfile.verificationStatus === 'PENDING' ? 'incomplete_profile' : 'active')
         }
       } catch (err) {
@@ -139,6 +173,7 @@ export default function AgentDashboard() {
         if (dres.ok) {
           const body = await dres.json()
           drafts = body.data || []
+
           const mappedDrafts = drafts.map((d:any) => ({ id: d.id, type: d.status, name: d.title || d.artisan?.firstName || 'Unknown', location: d.artisan?.artisanProfile?.region || '', date: d.createdAt, status: d.status, artisanPhone: d.artisan?.phone, artisanEmail: d.artisan?.email, sampleTitle: d.title || '', createdAt: d.createdAt, updatedAt: d.updatedAt }))
           setVerificationTasksData(mappedDrafts)
         }
@@ -151,7 +186,19 @@ export default function AgentDashboard() {
         if (ores.ok) {
           const body = await ores.json()
           orders = body.data?.items || []
-          const mappedOrders = orders.map((o:any) => ({ id: o.id, order: o.id, customer: o.customer?.firstName || o.customerId, status: o.status, destination: o.address?.city || '', date: o.createdAt, history: [] }))
+
+          // Filter orders by agent region (if available)
+          const region = regionLocal || agentRegion || ''
+          const matchesRegion = (o: any) => {
+            if (!region) return true
+            const city = (o.shippingAddress?.city || o.address?.city || '').toString().toLowerCase()
+            const addrRegion = (o.shippingAddress?.region || o.address?.region || '').toString().toLowerCase()
+            const r = region.toString().toLowerCase()
+            return city.includes(r) || addrRegion.includes(r) || (o.destination || '').toString().toLowerCase().includes(r)
+          }
+
+          const filtered = orders.filter(matchesRegion)
+          const mappedOrders = filtered.map((o:any) => ({ id: o.id, order: o.id, customer: o.customer?.firstName || o.customerId, status: o.status, destination: o.shippingAddress?.city || o.address?.city || '', date: o.createdAt, history: [] }))
           setShipments(mappedOrders)
         }
       } catch (err) {
@@ -197,40 +244,23 @@ export default function AgentDashboard() {
 
   const openShipmentModal = (shipment: any) => {
     setSelectedShipment(shipment)
-    setSelectedShipmentStatus(shipment.status)
+    const nextStatuses = AGENT_SHIPMENT_TRANSITIONS[shipment.status] || []
+    setSelectedShipmentStatus(nextStatuses[0] || shipment.status)
     setShipmentLocationInput('')
     setShipmentNotesInput('')
     setIsShipmentUpdateModalOpen(true)
   }
 
-  const allowedTransitions: Record<string, string[]> = {
-    'Pending Pickup': ['Pending Pickup', 'In Transit'],
-    'In Transit': ['In Transit', 'Customs Clearing', 'Delivered'],
-    'Customs Clearing': ['Customs Clearing', 'In Transit', 'Delivered'],
-    'Delivered': ['Delivered'],
-    'Pending': ['Pending', 'Pending Pickup', 'In Transit'],
-  }
-
   const handleConfirmShipmentUpdate = () => {
     if (!selectedShipment || !selectedShipmentStatus) return
-    const allowed = allowedTransitions[selectedShipment.status] || Object.keys(allowedTransitions)
+    const allowed = AGENT_SHIPMENT_TRANSITIONS[selectedShipment.status] || []
     if (!allowed.includes(selectedShipmentStatus)) {
       toast.error('Invalid status transition. Please choose the next valid stage.')
       return
     }
 
-    // Map UI statuses to order statuses
-    const statusMap: Record<string, string> = {
-      'Pending': 'PROCESSING',
-      'Pending Pickup': 'PROCESSING',
-      'In Transit': 'SHIPPED',
-      'Customs Clearing': 'SHIPPED',
-      'Delivered': 'DELIVERED',
-    }
-    const mapped = statusMap[selectedShipmentStatus] || selectedShipmentStatus
-
     const base = (process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, '') || 'http://localhost:4000/api/v1'
-    fetch(`${base}/orders/${selectedShipment.order}/status`, { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: mapped }) })
+    fetch(`${base}/orders/${selectedShipment.order}/status`, { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: selectedShipmentStatus }) })
       .then(async (res) => {
         if (!res.ok) throw new Error('Update failed')
         const body = await res.json()
@@ -612,7 +642,7 @@ export default function AgentDashboard() {
                         <td className="py-3 px-4">{shipment.order}</td>
                         <td className="py-3 px-4">{shipment.destination}</td>
                         <td className="py-3 px-4">
-                          <Badge className={getStatusColor(shipment.status)}>{shipment.status}</Badge>
+                          <Badge className={getStatusColor(shipment.status)}>{ORDER_STATUS_LABELS[shipment.status] || shipment.status}</Badge>
                         </td>
                         <td className="py-3 px-4 text-sm">{shipment.date}</td>
                         <td className="py-3 px-4">
@@ -762,7 +792,7 @@ export default function AgentDashboard() {
                 <input type="text" defaultValue="John Doe" className="w-full p-3 border border-border rounded bg-muted cursor-not-allowed" disabled />
               </div>
               <div className="space-y-2">
-                <label className="text-xs font-semibold text-muted-foreground uppercase">Service Region(s)</label>
+                <label className="text-xs font-semibold text-muted-foreground uppercase">Service City(s)</label>
                 <input type="text" placeholder="e.g. Addis Ababa, Oromia" className="w-full p-3 border border-border rounded bg-background" />
               </div>
             </div>
@@ -958,11 +988,15 @@ export default function AgentDashboard() {
                 className="w-full p-3 border border-border rounded bg-background"
                 value={selectedShipmentStatus || selectedShipment?.status}
                 onChange={(e) => setSelectedShipmentStatus(e.target.value)}
+                disabled={(AGENT_SHIPMENT_TRANSITIONS[selectedShipment?.status] || []).length === 0}
               >
-                {(allowedTransitions[selectedShipment?.status] || ['Pending Pickup', 'In Transit', 'Customs Clearing', 'Delivered', 'Issue Flagged']).map((opt) => (
-                  <option key={opt} value={opt}>{opt}</option>
+                {(AGENT_SHIPMENT_TRANSITIONS[selectedShipment?.status] || []).map((opt) => (
+                  <option key={opt} value={opt}>{ORDER_STATUS_LABELS[opt] || opt}</option>
                 ))}
               </select>
+              {(AGENT_SHIPMENT_TRANSITIONS[selectedShipment?.status] || []).length === 0 && (
+                <p className="text-xs text-muted-foreground">No further status updates are available for this shipment.</p>
+              )}
             </div>
             <div className="space-y-2">
               <label className="text-xs font-semibold text-muted-foreground uppercase">Location/Checkpoint</label>
@@ -976,7 +1010,7 @@ export default function AgentDashboard() {
               <DialogClose asChild>
                 <Button variant="outline">Cancel</Button>
               </DialogClose>
-              <Button onClick={handleConfirmShipmentUpdate}>Confirm Update</Button>
+              <Button onClick={handleConfirmShipmentUpdate} disabled={(AGENT_SHIPMENT_TRANSITIONS[selectedShipment?.status] || []).length === 0}>Confirm Update</Button>
             </div>
           </div>
         </DialogContent>
