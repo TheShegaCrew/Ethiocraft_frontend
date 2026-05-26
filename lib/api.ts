@@ -1,10 +1,32 @@
-const API_BASE_URL =
-  (process.env.NEXT_PUBLIC_API_BASE_URL ?? process.env.NEXT_PUBLIC_BASE_URL ?? "").replace(/\/$/, "") ||
-  "http://localhost:4000/api/v1";
+const DIRECT_API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").replace(/\/$/, "");
+const FALLBACK_API_BASE_URL =
+  (process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:4000/api/v1").replace(/\/$/, "");
+
+function getApiBaseUrl(): string {
+  // In the browser, prefer the Next.js same-origin proxy unless an explicit public API
+  // base URL is configured. This avoids cookie/CORS issues on localhost.
+  if (typeof window !== "undefined") {
+    return DIRECT_API_BASE_URL || "/api";
+  }
+
+  return DIRECT_API_BASE_URL || FALLBACK_API_BASE_URL;
+}
 
 export function buildApiUrl(path: string): string {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  return `${API_BASE_URL}${normalizedPath}`;
+  return `${getApiBaseUrl()}${normalizedPath}`;
+}
+
+function buildApiUrlObject(path: string): URL {
+  const url = buildApiUrl(path);
+
+  if (/^https?:\/\//i.test(url)) {
+    return new URL(url);
+  }
+
+  const origin =
+    typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
+  return new URL(url, origin);
 }
 
 export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
@@ -21,8 +43,7 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
  * Base URL: process.env.NEXT_PUBLIC_BASE_URL (e.g. http://localhost:4000/api/v1)
  */
 
-const BASE_URL =
-  process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:4000/api/v1";
+const BASE_URL = getApiBaseUrl();
 
 // ─── Types returned by the backend ───────────────────────────────────────────
 
@@ -77,7 +98,7 @@ export type ApiProductSummary = {
 export type ApiProductDetail = ApiProductSummary & {
   shortDescription?: string;
   material?: string;
-  dimensions?: string;
+  dimensions?: string | { measurements?: string } | null;
   careInstructions?: string;
   reviews: ApiReview[];
   relatedProducts: ApiProductSummary[];
@@ -304,7 +325,7 @@ export function getArtisanName(artisan: ApiArtisan): string {
 export async function fetchProducts(
   params: ProductListParams = {}
 ): Promise<ProductListResponse> {
-  const url = new URL(`${BASE_URL}/marketplace/products`);
+  const url = buildApiUrlObject("/marketplace/products");
 
   appendMarketplaceFilterParams(url, params);
   if (params.sortBy) url.searchParams.set("sortBy", params.sortBy);
@@ -327,7 +348,7 @@ export async function fetchSearchSuggestions(params: {
   q: string;
   limit?: number;
 }): Promise<SearchSuggestionsResponse> {
-  const url = new URL(`${BASE_URL}/marketplace/products/suggestions`);
+  const url = buildApiUrlObject("/marketplace/products/suggestions");
   if (params.q) url.searchParams.set("q", params.q.trim());
   if (params.limit) url.searchParams.set("limit", String(params.limit));
 
@@ -345,7 +366,7 @@ export async function fetchSearchSuggestions(params: {
 export async function fetchMarketplaceFacets(
   params: MarketplaceFacetsParams = {}
 ): Promise<MarketplaceFacetsResponse> {
-  const url = new URL(`${BASE_URL}/marketplace/products/facets`);
+  const url = buildApiUrlObject("/marketplace/products/facets");
   appendMarketplaceFilterParams(url, params);
 
   const res = await fetch(url.toString(), { cache: "no-store" });
@@ -384,7 +405,7 @@ export async function fetchOrders(
   _token: string | null = null,
   params: OrderListParams = {}
 ): Promise<OrderListResponse> {
-  const url = new URL(`${BASE_URL}/orders`);
+  const url = buildApiUrlObject("/orders");
 
   if (params.page) url.searchParams.set("page", String(params.page));
   if (params.limit) url.searchParams.set("limit", String(params.limit));
@@ -892,7 +913,25 @@ function formatApiError(err: Record<string, unknown>, fallback: string): string 
   return typeof err.message === "string" ? err.message : fallback;
 }
 
-const API_ORIGIN = API_BASE_URL.replace(/\/api\/v1\/?$/, "");
+function extractListPayload<T>(json: Record<string, unknown>): T[] {
+  const data = json.data;
+
+  if (Array.isArray(data)) {
+    return data as T[];
+  }
+
+  if (data && typeof data === "object" && Array.isArray((data as { items?: unknown[] }).items)) {
+    return (data as { items: T[] }).items;
+  }
+
+  if (Array.isArray(json.items)) {
+    return json.items as T[];
+  }
+
+  return [];
+}
+
+const API_ORIGIN = (DIRECT_API_BASE_URL || FALLBACK_API_BASE_URL).replace(/\/api\/v1\/?$/, "");
 
 /** Resolve relative upload paths or pass through Cloudinary HTTPS URLs. */
 export function resolveMediaUrl(url?: string | null, fallback = "/placeholder.svg?height=150&width=150"): string {
@@ -908,7 +947,7 @@ export async function fetchArtisanSamples(): Promise<ApiArtisanSample[]> {
     throw new Error(err?.message || `Failed to fetch samples: ${res.status}`);
   }
   const json = await res.json();
-  return (json.data ?? []) as ApiArtisanSample[];
+  return extractListPayload<ApiArtisanSample>(json);
 }
 
 export async function createArtisanSample(payload: ArtisanSamplePayload): Promise<string> {
@@ -947,7 +986,7 @@ export async function fetchArtisanDrafts(status?: string): Promise<ApiArtisanDra
     throw new Error(err?.message || `Failed to fetch drafts: ${res.status}`);
   }
   const json = await res.json();
-  return (json.data ?? []) as ApiArtisanDraft[];
+  return extractListPayload<ApiArtisanDraft>(json);
 }
 
 export async function fetchArtisanPublishedProducts(
@@ -962,7 +1001,7 @@ export async function fetchArtisanPublishedProducts(
     throw new Error(err?.message || `Failed to fetch products: ${res.status}`);
   }
   const json = await res.json();
-  return (json.data ?? []) as ApiProductSummary[];
+  return extractListPayload<ApiProductSummary>(json);
 }
 
 export async function fetchArtisanSample(sampleId: string): Promise<ApiArtisanSample> {

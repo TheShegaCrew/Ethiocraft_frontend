@@ -307,22 +307,48 @@ export default function ArtisanDashboard() {
     if (!enabled) return
     setLoading(true)
     setError(null)
-    try {
-      const [samplesData, draftsData, publishedData, ordersData] = await Promise.all([
-        fetchArtisanSamples(),
-        fetchArtisanDrafts(),
-        fetchArtisanPublishedProducts(),
-        fetchOrders(null, { limit: 10 }),
-      ])
-      setSamples(samplesData)
-      setDrafts(draftsData)
-      setPublished(publishedData)
-      setOrders(ordersData.items)
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to load dashboard data')
-    } finally {
-      setLoading(false)
+    const results = await Promise.allSettled([
+      fetchArtisanSamples(),
+      fetchArtisanDrafts(),
+      fetchArtisanPublishedProducts(),
+      fetchOrders(null, { limit: 10 }),
+    ])
+
+    const [samplesResult, draftsResult, publishedResult, ordersResult] = results
+    const errors: string[] = []
+
+    if (samplesResult.status === 'fulfilled') {
+      setSamples(samplesResult.value)
+    } else {
+      setSamples([])
+      errors.push(samplesResult.reason instanceof Error ? samplesResult.reason.message : 'Failed to load samples')
     }
+
+    if (draftsResult.status === 'fulfilled') {
+      setDrafts(draftsResult.value)
+    } else {
+      setDrafts([])
+      errors.push(draftsResult.reason instanceof Error ? draftsResult.reason.message : 'Failed to load drafts')
+    }
+
+    if (publishedResult.status === 'fulfilled') {
+      setPublished(publishedResult.value)
+    } else {
+      setPublished([])
+      errors.push(
+        publishedResult.reason instanceof Error ? publishedResult.reason.message : 'Failed to load published products',
+      )
+    }
+
+    if (ordersResult.status === 'fulfilled') {
+      setOrders(ordersResult.value.items)
+    } else {
+      setOrders([])
+      errors.push(ordersResult.reason instanceof Error ? ordersResult.reason.message : 'Failed to load orders')
+    }
+
+    setError(errors.length > 0 ? errors.join(' | ') : null)
+    setLoading(false)
   }, [enabled])
 
   useEffect(() => {
