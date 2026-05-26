@@ -19,19 +19,16 @@ export default function ProductsSection(props: any) {
     let cancelled = false;
     setLoading(true);
 
-    // Fetch both draft pipeline (admin) and published marketplace products in parallel
-    Promise.all([
-      apiFetch('/verifications/products/drafts?page=1&limit=50').then((r) => r.ok ? r.json() : { data: { items: [] } }),
-      apiFetch('/marketplace/products?limit=50').then((r) => r.ok ? r.json() : { data: { items: [] } }),
-    ])
-      .then(([draftsJson, publishedJson]) => {
+    // Only fetch published marketplace products (no drafts)
+    apiFetch('/marketplace/products?limit=50')
+      .then((r) => (r.ok ? r.json() : { data: { items: [] } }))
+      .then((json) => {
         if (cancelled) return;
-        const drafts: any[] = draftsJson?.data?.items ?? draftsJson?.data ?? [];
-        const published: any[] = publishedJson?.data?.items ?? [];
-        setProducts([...drafts, ...published]);
+        const published: any[] = json?.data?.items ?? json?.data ?? [];
+        setProducts(published);
       })
       .catch((err) => {
-        console.error('Failed to fetch products', err);
+        console.error('Failed to fetch published products', err);
         if (!cancelled) setProducts([]);
       })
       .finally(() => {
@@ -76,10 +73,14 @@ export default function ProductsSection(props: any) {
   };
 
   const handleOpenFullRecord = () => {
-    if (selectedProduct?.id) {
+    if (!selectedProduct?.id) return;
+    const draftStatuses = ['ADMIN_CREATED', 'AGENT_IN_PROGRESS', 'AGENT_VERIFIED', 'ADMIN_REVIEW', 'REJECTED'];
+    if (draftStatuses.includes(selectedProduct.status)) {
+      router.push(`/admin/verification_task/draft/${selectedProduct.id}`);
+    } else {
       router.push(`/admin/products/${selectedProduct.id}`);
-      setIsDrawerOpen(false);
     }
+    setIsDrawerOpen(false);
   };
 
   return (
