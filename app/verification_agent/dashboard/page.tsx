@@ -435,18 +435,18 @@ export default function AgentDashboard() {
       
       if (!updateDraftRes.ok) throw new Error('Failed to update draft with verification data');
 
-      // 2. Submit the review decision
-      const reviewRes = await fetch(`${base}/verifications/products/drafts/${selectedTask?.id}/review`, {
+      // 2. Mark draft as agent verified
+      const reviewRes = await fetch(`${base}/verifications/products/drafts/${selectedTask?.id}/verify`, {
         method: 'PATCH',
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
-        body: JSON.stringify({ decision: 'APPROVE', notes: verificationForm.culturalNotes || '' })
+        body: JSON.stringify({ notes: verificationForm.culturalNotes || '' })
       });
       
-      if (!reviewRes.ok) throw new Error('Failed to submit review decision');
+      if (!reviewRes.ok) throw new Error('Failed to verify draft');
       
       const body = await reviewRes.json();
       const draft = body.data?.draft || body.data;
