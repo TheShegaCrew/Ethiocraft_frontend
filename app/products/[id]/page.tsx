@@ -18,6 +18,7 @@ import {
   fetchProductById,
   getArtisanName,
   getProductImage,
+  resolveMediaUrl,
   submitReview,
   type ApiProductSummary,
   type ApiReview,
@@ -46,6 +47,7 @@ type DetailProduct = {
   care: string;
   badge?: "Handmade" | "New";
   images: string[];
+  modelUrl?: string | null;
   artisan: {
     name: string;
     title: string;
@@ -74,6 +76,7 @@ const initialEmptyProduct: DetailProduct = {
   dimensions: "",
   care: "",
   images: [],
+  modelUrl: null,
   artisan: {
     name: "",
     title: "",
@@ -81,6 +84,17 @@ const initialEmptyProduct: DetailProduct = {
     story: "",
   },
 };
+
+function normalizeProductDimensions(
+  dimensions?: string | { measurements?: string } | null,
+): string {
+  if (!dimensions) return "Not specified";
+  if (typeof dimensions === "string") return dimensions;
+  if (typeof dimensions === "object" && "measurements" in dimensions) {
+    return dimensions.measurements ?? "Not specified";
+  }
+  return JSON.stringify(dimensions);
+}
 
 export default function App() {
   const params = useParams<{ id: string }>();
@@ -103,6 +117,8 @@ export default function App() {
   const [loaded, setLoaded] = useState(false);
   const [revealedSections, setRevealedSections] = useState<string[]>([]);
 
+  const [modelUrl, setModelUrl] = useState<string | null>(null);
+
   // Review Form States (UC17)
   const [userRating, setUserRating] = useState(0);
   const [userComment, setUserComment] = useState("");
@@ -118,6 +134,12 @@ export default function App() {
       try {
         setIsLoadingProduct(true);
         const apiProduct = await fetchProductById(routeProductId);
+        const mediaUrls = apiProduct.media?.map((m) => resolveMediaUrl(m.url)).filter(Boolean) || [];
+        const modelUrlFromMedia = mediaUrls.find((url) => {
+          const extension = url?.split("?")[0]?.split(".").pop()?.toLowerCase();
+          return ["gltf", "glb", "obj", "fbx", "stl", "ply", "usdz"].includes(extension ?? "");
+        }) ?? null;
+
         setProduct({
           id: apiProduct.id,
           name: apiProduct.title,
@@ -127,11 +149,14 @@ export default function App() {
             apiProduct.shortDescription || apiProduct.description,
           story: apiProduct.description,
           material: apiProduct.material || "Handcrafted mixed materials",
-          dimensions: apiProduct.dimensions || "Not specified",
+          dimensions: normalizeProductDimensions(apiProduct.dimensions),
           care: apiProduct.careInstructions || "Ask artisan for care guide",
           badge: apiProduct.publishedAt ? "Handmade" : undefined,
-          images:
-            apiProduct.media?.map((m) => m.url).filter(Boolean) || [getProductImage(apiProduct)],
+          images: mediaUrls.filter((url) => {
+            const extension = url?.split("?")[0]?.split(".").pop()?.toLowerCase();
+            return !["gltf", "glb", "obj", "fbx", "stl", "ply", "usdz"].includes(extension ?? "");
+          }),
+          modelUrl: modelUrlFromMedia,
           artisan: {
             name: getArtisanName(apiProduct.artisan),
             title: apiProduct.artisan?.artisanProfile?.shopName || "Artisan",
@@ -143,6 +168,7 @@ export default function App() {
               "Authentic Ethiopian craft expertise.",
           },
         });
+        setModelUrl(modelUrlFromMedia);
 
         setRelatedProducts(
           (apiProduct.relatedProducts || []).map((item: ApiProductSummary) => ({
@@ -339,6 +365,7 @@ export default function App() {
   };
   const showImageMode = () => setMediaMode("image");
   const show3DMode = () => {
+    if (!modelUrl) return;
     setMediaMode("3d");
     setIs3DActivated(true);
   };
@@ -424,7 +451,8 @@ export default function App() {
                 </button>
                 <button
                   onClick={show3DMode}
-                  className={`px-3 py-1 text-[10px] uppercase tracking-[0.1em] transition-colors ${mediaMode === "3d" ? "bg-[#1C1C1C] text-[#FAFAF9]" : "text-[#4f4b45] hover:text-[#1C1C1C]"}`}
+                  disabled={!modelUrl}
+                  className={`px-3 py-1 text-[10px] uppercase tracking-[0.1em] transition-colors ${mediaMode === "3d" ? "bg-[#1C1C1C] text-[#FAFAF9]" : modelUrl ? "text-[#4f4b45] hover:text-[#1C1C1C]" : "text-[#a49d92] cursor-not-allowed"}`}
                 >
                   3D View
                 </button>
@@ -450,7 +478,7 @@ export default function App() {
                 {is3DActivated &&
                   (isModelViewerReady ? (
                     createElement("model-viewer", {
-                      src: "https://modelviewer.dev/shared-assets/models/Chair.glb",
+                      src: product.modelUrl ?? "",
                       poster: activeImage,
                       style: {
                         width: "100%",
