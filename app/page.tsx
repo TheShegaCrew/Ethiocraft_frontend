@@ -37,27 +37,27 @@ export default function Home() {
   const categories = [
     {
       name: 'Textiles',
-      image: '/placeholder.svg?height=600&width=400',
+      image: '/images/textiles.webp?height=600&width=400',
       description: 'Authentic hand-loomed fabrics and traditional attire crafted with heritage techniques.',
-      amount: '45 Items'
+      
     },
     {
       name: 'Jewelry',
-      image: '/placeholder.svg?height=600&width=400',
+      image: '/images/jewelry.webp?height=600&width=400',
       description: 'Exquisite gold and silver filigree masterpieces from master Ethiopian jewelers.',
-      amount: '32 Items'
+      
     },
     {
       name: 'Crafts',
-      image: '/placeholder.svg?height=600&width=400',
+      image: '/images/crafts.jpg\\?height=600&width=400',
       description: 'Hand-woven baskets and traditional home decor reflecting local cultural motifs.',
-      amount: '18 Items'
+      
     },
     {
       name: 'Accessories',
-      image: '/placeholder.svg?height=600&width=400',
+      image: '/images/accessery.webp?height=600&width=400',
       description: 'Premium Ethiopian leather goods and hand-tooled bags for the modern lifestyle.',
-      amount: '24 Items'
+      
     },
   ]
 
@@ -150,10 +150,7 @@ export default function Home() {
                     <p className="text-muted-foreground text-sm leading-relaxed line-clamp-2 mb-6 flex-1">
                       {cat.description}
                     </p>
-                    <div className="flex items-center justify-between mt-auto">
-                      <span className="text-secondary font-bold text-xs uppercase tracking-[0.2em]">{cat.amount}</span>
-                      <ArrowRight className="w-4 h-4 text-secondary opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
-                    </div>
+                    
                   </div>
                 </Card>
               </Link>
@@ -212,7 +209,7 @@ export default function Home() {
 
                       {/* Price and Button */}
                       <div className="flex items-center justify-between">
-                        <span className="text-lg font-bold text-secondary">${product.price}</span>
+                        <span className="text-lg font-bold text-secondary">ETB {Number(product.price).toLocaleString()}</span>
                         <Button
                           size="sm"
                           className="bg-primary hover:bg-primary/90"
@@ -245,7 +242,7 @@ export default function Home() {
               <p className="text-sm text-muted-foreground mb-8 leading-relaxed">
                 Your hands keep the heartbeat of Ethiopian culture alive, from the vibrant patterns of a Mesob basket to the intricate Tibeb of a Habesha Kemis. We invite you to join a modern marketplace designed respectfully for you. We don&apos;t just display your work; we celebrate your skill as an active creator. Let us bridge your traditional craftsmanship with the digital future, empowering you to share the authentic spirit of Ethiopia with a global audience while maintaining complete pride in your heritage.
               </p>
-              <Link href="/auth/register">
+              <Link href="/auth/register/artisan/register" className="inline-flex items-center gap-2 border border-[#C6A75E] bg-[#C6A75E] px-6 py-3 text-sm text-[#1C1C1C] transition duration-300 hover:-translate-y-0.5 hover:bg-[#d2b472] uppercase font-aeonik">
                 <Button className="bg-secondary text-secondary-foreground font-aeonik hover:bg-secondary/90 px-10 py-6 text-lg">
                   Sell Here
                 </Button>
