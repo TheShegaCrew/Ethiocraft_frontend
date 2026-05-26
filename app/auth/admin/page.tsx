@@ -53,7 +53,7 @@ export default function AdminLoginPage() {
 
       // Redirect based on role
       const dashboardMap: Record<AdminRole, string> = {
-        agent: '/agent/dashboard',
+        agent: '/verification_agent/dashboard',
         admin: '/admin/dashboard',
       }
       window.location.href = dashboardMap[role]
