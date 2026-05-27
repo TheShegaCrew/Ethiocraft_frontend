@@ -53,15 +53,11 @@ export function Footer() {
             <h3 className="font-semibold mb-4">Support</h3>
             <ul className="space-y-2 text-sm">
               <li>
-                <Link href="#" className="hover:text-secondary transition">
+                <Link href="/contact" className="hover:text-secondary transition">
                   Contact Us
                 </Link>
               </li>
-              <li>
-                <Link href="#" className="hover:text-secondary transition">
-                  FAQs
-                </Link>
-              </li>
+
               <li>
                 <Link href="#" className="hover:text-secondary transition">
                   Shipping Info
@@ -103,13 +99,13 @@ export function Footer() {
 
         <div className="border-t border-primary-foreground/20 pt-8 flex flex-col md:flex-row justify-between items-center text-sm">
           <p className="text-primary-foreground/70">
-            © 2024 Ethiopian Handcraft Marketplace. All rights reserved.
+            © 2026 EthioCraft. All rights reserved.
           </p>
           <div className="flex gap-4 mt-4 md:mt-0">
-            <Link href="#" className="hover:text-secondary transition">
+            <Link href="/privacy" className="hover:text-secondary transition">
               Privacy Policy
             </Link>
-            <Link href="#" className="hover:text-secondary transition">
+            <Link href="/terms" className="hover:text-secondary transition">
               Terms of Service
             </Link>
           </div>
