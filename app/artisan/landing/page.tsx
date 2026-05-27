@@ -540,7 +540,7 @@ export default function App() {
             future.
           </p>
           <div className="mt-10">
-            <a href="/auth/register/artisan">
+            <a href="/auth/register/artisan/register">
               <Button
                 size="lg"
                 className="bg-secondary text-secondary-foreground hover:bg-secondary/90 font-aeonik px-12 py-8 text-xl gap-3"
