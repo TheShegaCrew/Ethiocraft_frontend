@@ -39,18 +39,10 @@ function persistRole(newRole: UserRole) {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(() => {
-    if (typeof window === 'undefined') return null
-    return localStorage.getItem(TOKEN_KEY)
-  })
-  const [role, setRole] = useState<UserRole>(() => {
-    if (typeof window === 'undefined') return null
-    return localStorage.getItem(ROLE_KEY) as UserRole | null
-  })
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    if (typeof window === 'undefined') return false
-    return Boolean(localStorage.getItem(TOKEN_KEY))
-  })
+  // Keep initial render stable between server and client to avoid hydration mismatches.
+  const [token, setToken] = useState<string | null>(null)
+  const [role, setRole] = useState<UserRole>(null)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isAuthLoading, setIsAuthLoading] = useState(true)
   const router = useRouter()
 
