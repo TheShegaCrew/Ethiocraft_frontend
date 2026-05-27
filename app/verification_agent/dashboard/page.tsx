@@ -12,6 +12,20 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  PieChart,
+  Pie,
+  Cell,
+  LineChart,
+  Line,
+} from 'recharts'
 import { 
   CheckCircle2, 
   Clock, 
@@ -133,6 +147,9 @@ const AGENT_SHIPMENT_TRANSITIONS: Record<string, string[]> = {
   DELIVERED: [],
 }
 
+const normalizeStatus = (value: any) => String(value || '').trim().toUpperCase()
+const isAdminCreated = (status: any) => normalizeStatus(status) === 'ADMIN_CREATED'
+const isAgentVerified = (status: any) => normalizeStatus(status) === 'AGENT_VERIFIED'
 
 export default function AgentDashboard() {
   // Modal States
@@ -212,6 +229,35 @@ export default function AgentDashboard() {
         return 'bg-border text-foreground'
     }
   }
+
+  const adminCreatedTasks = verificationTasksData.filter((t) => isAdminCreated(t?.status))
+  const agentVerifiedDrafts = drafts.filter((d) => isAgentVerified(d?.status))
+
+  const reportDraftStatusData = (() => {
+    const counts: Record<string, number> = {}
+    for (const t of verificationTasksData) {
+      const s = normalizeStatus(t?.status) || 'UNKNOWN'
+      counts[s] = (counts[s] || 0) + 1
+    }
+    return Object.entries(counts)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+  })()
+
+  const reportMonthlyVerificationData = (monthlyVolume.length ? monthlyVolume : [0, 0, 0, 0, 0, 0, 0]).map((value, idx) => {
+    // Keep existing logic simple: index-based labels
+    const label = `M${idx + 1}`
+    return { name: label, value }
+  })
+
+  const reportShipmentStatusData = (() => {
+    const counts: Record<string, number> = {}
+    for (const s of shipments) {
+      const key = normalizeStatus(s?.status) || 'UNKNOWN'
+      counts[key] = (counts[key] || 0) + 1
+    }
+    return Object.entries(counts).map(([name, value]) => ({ name, value }))
+  })()
 
   const openVerificationModal = (task: any) => {
     setSelectedTask(task)
@@ -598,7 +644,7 @@ export default function AgentDashboard() {
 
       // Add created draft to local list
       if (draft) setDrafts((prev) => [draft, ...prev])
-      setVerificationTasksData((prev) => prev.map((task) => (task.id === selectedTask?.id ? { ...task, status: 'Completed' } : task)))
+      setVerificationTasksData((prev) => prev.map((task) => (task.id === selectedTask?.id ? { ...task, status: 'AGENT_VERIFIED' } : task)))
       if (selectedTask?.id) {
         setVerificationProgressByTaskId((prev) => {
           const next = { ...prev }
@@ -770,7 +816,7 @@ export default function AgentDashboard() {
               </div>
 
               <div className="space-y-3">
-                {verificationTasksData.map((task) => (
+                {adminCreatedTasks.map((task) => (
                   <Card key={task.id} className="p-4">
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                       <div>
@@ -786,19 +832,18 @@ export default function AgentDashboard() {
                       </div>
                       <div className="flex items-center gap-3">
                         <Badge className={getStatusColor(task.status)}>{task.status}</Badge>
-                        {task.status === 'Pending' ? (
-                          <Button className="bg-primary" onClick={() => openVerificationModal(task)}>
-                            Verify Data
-                          </Button>
-                        ) : (
-                          <Button variant="outline" onClick={() => openVerificationModal(task)}>
-                            View Report
-                          </Button>
-                        )}
+                        <Button className="bg-primary" onClick={() => openVerificationModal(task)}>
+                          Verify Data
+                        </Button>
                       </div>
                     </div>
                   </Card>
                 ))}
+                {adminCreatedTasks.length === 0 && (
+                  <Card className="p-6">
+                    <p className="text-sm text-muted-foreground">No tasks in ADMIN_CREATED status.</p>
+                  </Card>
+                )}
               </div>
             </TabsContent>
 
@@ -851,17 +896,17 @@ export default function AgentDashboard() {
                 <Button variant="outline" onClick={() => { /* potential export */ }}>Export</Button>
               </div>
 
-              {drafts.length === 0 ? (
+              {agentVerifiedDrafts.length === 0 ? (
                 <Card className="p-6">
-                  <p className="text-sm text-muted-foreground">No verified products yet. Submit a verification to create a draft.</p>
+                  <p className="text-sm text-muted-foreground">No AGENT_VERIFIED drafts yet.</p>
                 </Card>
               ) : (
                 <div className="space-y-3">
-                  {drafts.map((d) => (
+                  {agentVerifiedDrafts.map((d) => (
                     <Card key={d.id} className="p-4 flex items-center justify-between">
                       <div>
                         <div className="text-xs text-muted-foreground font-mono">{d.id}</div>
-                        <div className="font-semibold">Sample: {d.linkedSampleId}</div>
+                        <div className="font-semibold">Sample: {d.linkedSampleId || d.sampleId || '—'}</div>
                         <div className="text-sm text-muted-foreground">Submitted: {new Date(d.submittedAt || d.createdAt || Date.now()).toLocaleString()}</div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -885,49 +930,76 @@ export default function AgentDashboard() {
                 <Button variant="outline">Export CSV</Button>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-4 lg:grid-cols-2">
                 <Card className="p-6">
                   <h3 className="font-aeonik text-xs uppercase tracking-[0.12em] text-muted-foreground mb-4">Verification Volume (Monthly)</h3>
-                  <div className="h-48 flex items-end gap-2 bg-muted/10 p-4 rounded-lg border border-border/50">
-                    {/* Monthly verification volume (last 7 months) */}
-                    {(monthlyVolume.length ? monthlyVolume : [0,0,0,0,0,0,0]).map((height, idx) => (
-                      <div key={idx} className="flex-1 bg-primary/80 hover:bg-primary transition-all rounded-t-sm relative group" style={{ height: `${Math.min(100, height)}%` }}>
-                        <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-xs opacity-0 group-hover:opacity-100">{height}</span>
+                  <div className="h-56">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={reportMonthlyVerificationData}>
+                        <CartesianGrid strokeDasharray="3 3" opacity={0.35} />
+                        <XAxis dataKey="name" />
+                        <YAxis allowDecimals={false} />
+                        <RechartsTooltip />
+                        <Bar dataKey="value" fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </Card>
+
+                <Card className="p-6">
+                  <h3 className="font-aeonik text-xs uppercase tracking-[0.12em] text-muted-foreground mb-4">Performance Metrics</h3>
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    {[
+                      { label: 'Accuracy', value: performanceMetrics.accuracyRate, color: '#10b981' },
+                      { label: 'SLA 48h', value: performanceMetrics.slaCompliance, color: '#64748b' },
+                      { label: 'Issue Resolution', value: performanceMetrics.issueResolutionRate, color: '#0ea5e9' },
+                    ].map((kpi) => (
+                      <div key={kpi.label} className="rounded-xl border border-border/60 bg-muted/10 p-4">
+                        <div className="text-xs uppercase tracking-[0.12em] text-muted-foreground font-aeonik">{kpi.label}</div>
+                        <div className="mt-2 text-2xl font-bold">{kpi.value}%</div>
+                        <div className="mt-3 h-2 w-full rounded-full bg-muted overflow-hidden">
+                          <div className="h-2 rounded-full" style={{ width: `${Math.min(100, Math.max(0, kpi.value))}%`, backgroundColor: kpi.color }} />
+                        </div>
                       </div>
                     ))}
                   </div>
                 </Card>
 
                 <Card className="p-6">
-                  <h3 className="font-aeonik text-xs uppercase tracking-[0.12em] text-muted-foreground mb-4">Performance Metrics</h3>
-                  <div className="space-y-6">
-                    <div>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span>Accuracy Rate</span>
-                        <span className="font-bold">{performanceMetrics.accuracyRate}%</span>
-                      </div>
-                      <div className="w-full bg-muted rounded-full h-2">
-                        <div className="bg-green-500 h-2 rounded-full" style={{ width: `${performanceMetrics.accuracyRate}%` }}></div>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span>SLA Compliance (48h)</span>
-                        <span className="font-bold">{performanceMetrics.slaCompliance}%</span>
-                      </div>
-                      <div className="w-full bg-muted rounded-full h-2">
-                        <div className="bg-secondary h-2 rounded-full" style={{ width: `${performanceMetrics.slaCompliance}%` }}></div>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span>Issue Resolution Rate</span>
-                        <span className="font-bold">{performanceMetrics.issueResolutionRate}%</span>
-                      </div>
-                      <div className="w-full bg-muted rounded-full h-2">
-                        <div className="bg-primary h-2 rounded-full" style={{ width: `${performanceMetrics.issueResolutionRate}%` }}></div>
-                      </div>
-                    </div>
+                  <h3 className="font-aeonik text-xs uppercase tracking-[0.12em] text-muted-foreground mb-4">Drafts by Status</h3>
+                  <div className="h-56">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <RechartsTooltip />
+                        <Pie data={reportDraftStatusData} dataKey="value" nameKey="name" innerRadius={55} outerRadius={85} paddingAngle={3}>
+                          {reportDraftStatusData.map((_, idx) => (
+                            <Cell key={idx} fill={['#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#a855f7', '#64748b'][idx % 6]} />
+                          ))}
+                        </Pie>
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </Card>
+
+                <Card className="p-6">
+                  <h3 className="font-aeonik text-xs uppercase tracking-[0.12em] text-muted-foreground mb-4">Shipments by Status</h3>
+                  <div className="h-56">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={reportShipmentStatusData.map((d, i) => ({ ...d, idx: i + 1 }))}>
+                        <CartesianGrid strokeDasharray="3 3" opacity={0.35} />
+                        <XAxis dataKey="name" hide />
+                        <YAxis allowDecimals={false} />
+                        <RechartsTooltip />
+                        <Line type="monotone" dataKey="value" stroke="hsl(var(--secondary))" strokeWidth={2} dot />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {reportShipmentStatusData.map((d) => (
+                      <span key={d.name} className="text-xs rounded-full border border-border/60 px-3 py-1 bg-muted/10">
+                        {d.name}: <span className="font-semibold">{d.value}</span>
+                      </span>
+                    ))}
                   </div>
                 </Card>
               </div>
