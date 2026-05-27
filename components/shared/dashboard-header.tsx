@@ -66,10 +66,10 @@ export function DashboardHeader({
   const closeTweenRef = useRef<gsap.core.Tween | null>(null);
   const isMountedRef = useRef(true);
 
-  const { role, logout } = useAuth();
+  const { role, logout, isAuthenticated } = useAuth();
   const router = useRouter()
   const { cartCount } = useCart();
-  const isLoggedIn = Boolean(role);
+  const isLoggedIn = isAuthenticated;
   const rolePath = role ? role.toLowerCase() : "customer";
   const profileHref = isLoggedIn ? `/${rolePath}/profile` : "/auth/login";
   const isCustomer = role?.toUpperCase() === 'CUSTOMER';

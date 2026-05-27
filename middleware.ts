@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
+import { dashboardForRole } from "@/lib/permissions";
 
 const AUTH_COOKIE_NAME = "auth_token";
+
+const AUTH_GUEST_PREFIXES = ["/auth/login", "/auth/register"];
 
 const ROLE_ROUTE_RULES: Array<{ prefix: string; role: string }> = [
   { prefix: "/admin", role: "ADMIN" },
@@ -45,10 +48,42 @@ function isStaticAsset(pathname: string): boolean {
   );
 }
 
+function isAuthGuestRoute(pathname: string): boolean {
+  return AUTH_GUEST_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+  );
+}
+
+async function verifyTokenRole(token: string): Promise<string | null> {
+  const jwtSecret = process.env.JWT_SECRET;
+  if (!jwtSecret) return null;
+
+  try {
+    const secret = new TextEncoder().encode(jwtSecret);
+    const { payload } = await jwtVerify(token, secret);
+    return String(payload.role ?? "");
+  } catch {
+    return null;
+  }
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (isStaticAsset(pathname) || isPublicRoute(pathname)) {
+  if (isStaticAsset(pathname)) {
+    return NextResponse.next();
+  }
+
+  const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
+
+  if (isAuthGuestRoute(pathname) && token) {
+    const role = await verifyTokenRole(token);
+    if (role) {
+      return NextResponse.redirect(new URL(dashboardForRole(role), request.url));
+    }
+  }
+
+  if (isPublicRoute(pathname)) {
     return NextResponse.next();
   }
 
@@ -57,28 +92,20 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
   if (!token) {
     return NextResponse.redirect(new URL("/auth/login", request.url));
   }
 
-  const jwtSecret = process.env.JWT_SECRET;
-  if (!jwtSecret) {
+  const role = await verifyTokenRole(token);
+  if (!role) {
     return NextResponse.redirect(new URL("/auth/login", request.url));
   }
 
-  try {
-    const secret = new TextEncoder().encode(jwtSecret);
-    const { payload } = await jwtVerify(token, secret);
-    const role = String(payload.role ?? "");
-    if (role !== requiredRole) {
-      return NextResponse.redirect(new URL("/forbidden", request.url));
-    }
-
-    return NextResponse.next();
-  } catch (_error) {
-    return NextResponse.redirect(new URL("/auth/login", request.url));
+  if (role !== requiredRole) {
+    return NextResponse.redirect(new URL("/forbidden", request.url));
   }
+
+  return NextResponse.next();
 }
 
 export const config = {

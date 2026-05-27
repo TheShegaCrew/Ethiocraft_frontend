@@ -8,12 +8,16 @@ import {
   ReactNode,
 } from 'react'
 import { useRouter } from 'next/navigation'
+import { buildApiUrl } from '@/lib/api'
+import { dashboardForRole } from '@/lib/permissions'
 
 export type UserRole = 'CUSTOMER' | 'ADMIN' | 'VERIFICATION_AGENT' | 'ARTISAN' | null
 
 interface AuthContextType {
   token: string | null
   role: UserRole
+  isAuthenticated: boolean
+  isAuthLoading: boolean
   login: (role: UserRole) => void
   logout: () => void
 }
@@ -22,22 +26,89 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 const ROLE_KEY = 'authRole'
 const TOKEN_KEY = 'authToken'
+const SESSION_TOKEN = 'session'
+
+function persistRole(newRole: UserRole) {
+  if (newRole) {
+    localStorage.setItem(ROLE_KEY, newRole)
+    localStorage.setItem(TOKEN_KEY, SESSION_TOKEN)
+  } else {
+    localStorage.removeItem(ROLE_KEY)
+    localStorage.removeItem(TOKEN_KEY)
+  }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(null)
-  const [role, setRole] = useState<UserRole>(null)
+  const [token, setToken] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null
+    return localStorage.getItem(TOKEN_KEY)
+  })
+  const [role, setRole] = useState<UserRole>(() => {
+    if (typeof window === 'undefined') return null
+    return localStorage.getItem(ROLE_KEY) as UserRole | null
+  })
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return Boolean(localStorage.getItem(TOKEN_KEY))
+  })
+  const [isAuthLoading, setIsAuthLoading] = useState(true)
   const router = useRouter()
 
-  // Rehydrate from localStorage on first mount (client-only)
   useEffect(() => {
-    const storedRole = localStorage.getItem(ROLE_KEY) as UserRole | null
-    if (storedRole) setRole(storedRole)
+    let cancelled = false
+
+    async function hydrateSession() {
+      const storedRole = localStorage.getItem(ROLE_KEY) as UserRole | null
+      const storedToken = localStorage.getItem(TOKEN_KEY)
+
+      if (storedRole && storedToken) {
+        setRole(storedRole)
+        setToken(storedToken)
+        setIsAuthenticated(true)
+      }
+
+      try {
+        const res = await fetch(buildApiUrl('/users/me'), { credentials: 'include' })
+
+        if (cancelled) return
+
+        if (res.ok) {
+          const json = await res.json()
+          const userRole = String(json?.data?.role ?? '').toUpperCase() as UserRole
+          if (userRole) {
+            persistRole(userRole)
+            setRole(userRole)
+            setToken(SESSION_TOKEN)
+            setIsAuthenticated(true)
+            return
+          }
+        }
+
+        if (res.status === 401 || res.status === 403) {
+          persistRole(null)
+          setRole(null)
+          setToken(null)
+          setIsAuthenticated(false)
+        }
+      } catch {
+        // Keep optimistic local session when the server is unreachable.
+      } finally {
+        if (!cancelled) setIsAuthLoading(false)
+      }
+    }
+
+    hydrateSession()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const login = (newRole: UserRole) => {
-    localStorage.setItem(ROLE_KEY, newRole ?? '')
-    setToken(null)
+    persistRole(newRole)
+    setToken(SESSION_TOKEN)
     setRole(newRole)
+    setIsAuthenticated(true)
+    setIsAuthLoading(false)
   }
 
   const logout = async () => {
@@ -66,6 +137,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setToken(null)
       setRole(null)
+      setIsAuthenticated(false)
+      setIsAuthLoading(false)
 
       // Redirect to login page
       try {
@@ -78,7 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ token, role, login, logout }}>
+    <AuthContext.Provider value={{ token, role, isAuthenticated, isAuthLoading, login, logout }}>
       {children}
     </AuthContext.Provider>
   )
@@ -88,4 +161,17 @@ export function useAuth() {
   const context = useContext(AuthContext)
   if (!context) throw new Error('useAuth must be used within AuthProvider')
   return context
+}
+
+/** Redirect authenticated users away from login/register pages. */
+export function useGuestRedirect() {
+  const { isAuthenticated, isAuthLoading, role } = useAuth()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (isAuthLoading || !isAuthenticated || !role) return
+    router.replace(dashboardForRole(role))
+  }, [isAuthenticated, isAuthLoading, role, router])
+
+  return { isAuthLoading, isAuthenticated }
 }

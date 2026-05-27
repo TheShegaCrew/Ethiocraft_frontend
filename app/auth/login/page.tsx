@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Header } from '@/components/shared/header';
 import { Footer } from '@/components/shared/footer';
-import { useAuth } from '@/lib/auth-context';
+import { useAuth, useGuestRedirect } from '@/lib/auth-context';
 import { dashboardForRole } from '@/lib/permissions';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -26,6 +26,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
+  const { isAuthLoading, isAuthenticated } = useGuestRedirect();
 
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -90,6 +91,10 @@ export default function LoginPage() {
       setIsLoading(false);
     }
   };
+
+  if (isAuthLoading || isAuthenticated) {
+    return null;
+  }
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden text-[#1C1C1C] font-inter flex flex-col">

@@ -33,9 +33,9 @@ export function Header() {
   const closeTweenRef = useRef<gsap.core.Tween | null>(null);
   const isMountedRef = useRef(true);
   const { setIsHovered: setGlobalIsHovered } = useHeader();
-  const { role, logout } = useAuth();
+  const { role, logout, isAuthenticated } = useAuth();
   const { cartCount } = useCart();
-  const isLoggedIn = Boolean(role);
+  const isLoggedIn = isAuthenticated;
   const rolePath = role ? role.toLowerCase() : "customer";
   const profileHref = isLoggedIn ? `/${rolePath}/dashboard` : "/auth/login";
 

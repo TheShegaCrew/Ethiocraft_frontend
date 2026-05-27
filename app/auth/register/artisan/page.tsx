@@ -1,6 +1,7 @@
 
 "use client";
 import { ChangeEvent, useMemo, useRef, useState } from 'react';
+import { useGuestRedirect } from '@/lib/auth-context';
 const BaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? process.env.NEXT_PUBLIC_BASE_URL ?? 'http://localhost:4000/api/v1';
 // ---------------------------------------------------------------------------
 // Types
@@ -170,6 +171,7 @@ async function uploadSampleImages(sampleId: string, files: File[]): Promise<void
 // ---------------------------------------------------------------------------
 
 export default function App() {
+  const { isAuthLoading, isAuthenticated } = useGuestRedirect();
   const [step, setStep] = useState<StepIndex>(1);
   const [isAnimating, setIsAnimating] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
@@ -357,6 +359,10 @@ export default function App() {
   // -------------------------------------------------------------------------
   // Render — "Under Review" screen
   // -------------------------------------------------------------------------
+
+  if (isAuthLoading || isAuthenticated) {
+    return null;
+  }
 
   if (isUnderReview) {
     return (
