@@ -388,13 +388,15 @@ export default function AgentDashboard() {
       }
       xhr.onload = () => {
         if (xhr.status >= 200 && xhr.status < 300) {
-          setUploadedMediaFiles((prev) => prev.map((m) => (m.name === mediaItem.name ? { ...m, status: 'uploaded', progress: 100, uploadedAt: new Date().toISOString() } : m)))
           try {
             const body = JSON.parse(xhr.responseText)
             // body.data is an array of created media records
             const created = Array.isArray(body.data) ? body.data : []
-            resolve(created[0]?.url || mediaItem.name)
+            const uploadedUrl = created[0]?.url || mediaItem.name
+            setUploadedMediaFiles((prev) => prev.map((m) => (m.name === mediaItem.name ? { ...m, status: 'uploaded', progress: 100, uploadedAt: new Date().toISOString(), uploadedUrl } : m)))
+            resolve(uploadedUrl)
           } catch {
+            setUploadedMediaFiles((prev) => prev.map((m) => (m.name === mediaItem.name ? { ...m, status: 'uploaded', progress: 100, uploadedAt: new Date().toISOString() } : m)))
             resolve(mediaItem.name)
           }
         } else {
@@ -430,18 +432,22 @@ export default function AgentDashboard() {
     }
     // Upload any pending media
     const uploadedUrls: string[] = []
+    let modelUrl: string | null = null;
     for (const media of uploadedMediaFiles) {
-      if (media.status === 'uploaded') {
-        uploadedUrls.push(media.uploadedUrl || media.name)
-        continue
+      let url = media.status === 'uploaded' ? (media.uploadedUrl || media.name) : null;
+      if (!url) {
+        try {
+          url = await uploadFile(media)
+        } catch (e) {
+          toast.error(`Failed to upload ${media.name}. Please retry.`)
+          return
+        }
       }
-      try {
-        // eslint-disable-next-line no-await-in-loop
-        const url = await uploadFile(media)
-        uploadedUrls.push(url)
-      } catch (e) {
-        toast.error(`Failed to upload ${media.name}. Please retry.`)
-        return
+      const ext = url.split('?')[0].split('.').pop()?.toLowerCase() || '';
+      if (['gltf', 'glb', 'obj', 'fbx', 'stl', 'ply', 'usdz'].includes(ext)) {
+        modelUrl = url;
+      } else {
+        uploadedUrls.push(url);
       }
     }
 
@@ -459,7 +465,7 @@ export default function AgentDashboard() {
           dimensions: { measurements: verificationForm.measurements },
           materials: verificationForm.materials ? verificationForm.materials.split(',').map((s) => s.trim()).filter(Boolean) : [],
           culturalMetadata: { notes: verificationForm.culturalNotes },
-          extensionData: { suggestedPricing: verificationForm.suggestedPricing, mediaFiles: uploadedUrls }
+          extensionData: { suggestedPricing: verificationForm.suggestedPricing, mediaFiles: uploadedUrls, modelUrl }
         })
       });
       

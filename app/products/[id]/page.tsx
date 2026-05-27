@@ -135,10 +135,20 @@ export default function App() {
         setIsLoadingProduct(true);
         const apiProduct = await fetchProductById(routeProductId);
         const mediaUrls = apiProduct.media?.map((m) => resolveMediaUrl(m.url)).filter(Boolean) || [];
-        const modelUrlFromMedia = mediaUrls.find((url) => {
+        
+        let extensionModelUrl = apiProduct.extensionData?.modelUrl ? resolveMediaUrl(apiProduct.extensionData.modelUrl) : null;
+        if (!extensionModelUrl && Array.isArray(apiProduct.extensionData?.mediaFiles)) {
+          const found = apiProduct.extensionData.mediaFiles.find((url: string) => {
+            const extension = url?.split("?")[0]?.split(".").pop()?.toLowerCase();
+            return ["gltf", "glb", "obj", "fbx", "stl", "ply", "usdz"].includes(extension ?? "");
+          });
+          if (found) extensionModelUrl = resolveMediaUrl(found);
+        }
+
+        const modelUrlFromMedia = extensionModelUrl || (mediaUrls.find((url) => {
           const extension = url?.split("?")[0]?.split(".").pop()?.toLowerCase();
           return ["gltf", "glb", "obj", "fbx", "stl", "ply", "usdz"].includes(extension ?? "");
-        }) ?? null;
+        }) ?? null);
 
         setProduct({
           id: apiProduct.id,
@@ -412,7 +422,7 @@ export default function App() {
             <div className="lg:col-span-7">
               <Skeleton className="h-[62vh] min-h-[420px] w-full rounded" />
               <div className="mt-4 grid grid-cols-3 gap-3">
-                {[0,1,2].map(i => <Skeleton key={i} className="h-24 w-full rounded" />)}
+                {[0, 1, 2].map(i => <Skeleton key={i} className="h-24 w-full rounded" />)}
               </div>
             </div>
             <div className="lg:col-span-5">

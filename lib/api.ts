@@ -92,6 +92,7 @@ export type ApiProductSummary = {
   publishedAt: string | null;
   media: ApiMedia[];
   artisan: ApiArtisan;
+  extensionData?: any;
   _count: { reviews: number };
 };
 
