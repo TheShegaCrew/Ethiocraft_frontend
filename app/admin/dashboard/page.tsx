@@ -89,7 +89,7 @@ const navigation: NavItem[] = [
   { label: 'Approvals', icon: ShieldCheck },
   { label: 'Analytics', icon: BarChart3 },
   { label: 'Reports', icon: FileText },
-  { label: 'Settings', icon: Settings },
+  // { label: 'Settings', icon: Settings },
 ];
 
 const initialApprovalItems: ApprovalItem[] = [];
@@ -187,8 +187,8 @@ export default function App() {
       router.push('/admin/analytics');
     } else if (nav === 'Reports') {
       router.push('/admin/report');
-    } else if (nav === 'Settings') {
-      router.push('/admin/setting');
+    // } else if (nav === 'Settings') {
+    //   router.push('/admin/setting');
     } else if (nav === 'Verification Tasks') {
       router.push('/admin/verification_task');
     } else {
@@ -550,9 +550,9 @@ export default function App() {
       return;
     }
 
-    if (entry === 'Preferences') {
-      router.push('/admin/setting');
-    }
+    // if (entry === 'Preferences') {
+    //   router.push('/admin/setting');
+    // }
   };
   const handleApprovalAction = (id: string, action: 'approve' | 'reject') => {
     // Navigate to detail page instead of local state update for samples
@@ -586,7 +586,7 @@ export default function App() {
     Approvals: 'Process pending artisan, product, and verification requests.',
     Analytics: 'Inspect growth, conversion, and category performance.',
     Reports: 'Resolve reports, moderation flags, and policy incidents.',
-    Settings: 'Configure platform rules, permissions, and integrations.',
+    // Settings: 'Configure platform rules, permissions, and integrations.',
   };
 
   const placeholderRows = Array.from({ length: 6 }, (_, index) => ({
@@ -824,7 +824,7 @@ export default function App() {
 
             {profileMenuOpen && (
               <div className="absolute right-8 top-[calc(100%+8px)] z-40 w-52 rounded-2xl border border-[#e8dece] bg-white p-2 shadow-[0_12px_30px_rgba(62,39,35,0.08)]">
-                {['Profile', 'Preferences', 'Sign out'].map((entry) => (
+                {['Profile',  'Sign out'].map((entry) => (
                   <button
                     key={entry}
                     className="w-full rounded-xl px-3 py-2 text-left text-sm transition hover:bg-[#f8f2e7]"
