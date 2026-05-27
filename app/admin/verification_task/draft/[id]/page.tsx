@@ -85,6 +85,13 @@ export default function ProductDraftReviewPage() {
       region: '',
       era: '',
       artisanTechnique: ''
+    },
+    agentVerificationData: {
+      measurements: '',
+      notes: '',
+      suggestedPricing: '',
+      mediaFiles: [] as string[],
+      modelUrl: null as string | null
     }
   });
 
@@ -128,6 +135,13 @@ export default function ProductDraftReviewPage() {
           region: data.culturalMetadata?.region || '',
           era: data.culturalMetadata?.era || '',
           artisanTechnique: data.culturalMetadata?.artisanTechnique || ''
+        },
+        agentVerificationData: {
+          measurements: data.dimensions?.measurements || '',
+          notes: data.culturalMetadata?.notes || '',
+          suggestedPricing: data.extensionData?.suggestedPricing || '',
+          mediaFiles: data.extensionData?.mediaFiles || [],
+          modelUrl: data.extensionData?.modelUrl || null
         }
       });
 
@@ -345,8 +359,55 @@ export default function ProductDraftReviewPage() {
       <main className="max-w-[1600px] mx-auto px-6 py-10">
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
 
-          {/* Form Content */}
           <div className="xl:col-span-8 space-y-8">
+            {/* Agent Verification Data */}
+            <article className="rounded-3xl border border-[#EAE5D9] bg-white p-8 shadow-sm bg-gradient-to-br from-emerald-50 to-white">
+              <h2 className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-700 mb-6 flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4" />
+                Agent Field Notes
+              </h2>
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-1">
+                  <p className="text-[10px] font-bold text-[#A39B8F] uppercase tracking-widest">Measurements</p>
+                  <p className="text-sm font-semibold text-[#2D2620]">{formData.agentVerificationData.measurements || 'N/A'}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] font-bold text-[#A39B8F] uppercase tracking-widest">Suggested Pricing</p>
+                  <p className="text-sm font-semibold text-[#2D2620]">{formData.agentVerificationData.suggestedPricing || 'N/A'}</p>
+                </div>
+                <div className="col-span-2 space-y-1">
+                  <p className="text-[10px] font-bold text-[#A39B8F] uppercase tracking-widest">Cultural/Verification Notes</p>
+                  <p className="text-sm font-medium text-[#5C5449]">{formData.agentVerificationData.notes || 'N/A'}</p>
+                </div>
+              </div>
+              
+              {(formData.agentVerificationData.mediaFiles.length > 0 || formData.agentVerificationData.modelUrl) && (
+                <div className="mt-6">
+                  <p className="text-[10px] font-bold text-[#A39B8F] uppercase tracking-widest mb-3">Agent Uploaded Media (incl. 3D Models)</p>
+                  <div className="flex gap-3 overflow-x-auto pb-2">
+                    {formData.agentVerificationData.modelUrl && (
+                      <a href={formData.agentVerificationData.modelUrl} target="_blank" rel="noreferrer" className="flex-shrink-0 w-20 h-20 rounded-xl border border-[#EAE5D9] overflow-hidden group relative">
+                        <div className="w-full h-full bg-[#FBFaf8] flex items-center justify-center text-[#C6A75E]">
+                          <Layers className="w-6 h-6" />
+                        </div>
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <ExternalLink className="w-4 h-4 text-white" />
+                        </div>
+                      </a>
+                    )}
+                    {formData.agentVerificationData.mediaFiles.map((url, idx) => (
+                      <a key={idx} href={url} target="_blank" rel="noreferrer" className="flex-shrink-0 w-20 h-20 rounded-xl border border-[#EAE5D9] overflow-hidden group relative">
+                        <img src={url} alt={`Agent media ${idx+1}`} className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <ExternalLink className="w-4 h-4 text-white" />
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </article>
+
             {/* Identity */}
             <article className="rounded-3xl border border-[#EAE5D9] bg-white p-8 shadow-sm">
               <h2 className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#A39B8F] mb-8 flex items-center gap-2">
