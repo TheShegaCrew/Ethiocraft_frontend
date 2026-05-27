@@ -22,6 +22,8 @@ import {
   Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 type DateRange = "7d" | "30d" | "custom";
 type ReportType = "orders" | "revenue" | "users" | "artisans" | "agents";
@@ -39,6 +41,12 @@ type ReportRow = {
 };
 
 type HeaderFilter = "all" | "role" | "status" | "region";
+
+type ApiFetchResult<T> = {
+  ok: boolean;
+  data: T | null;
+  message: string | null;
+};
 
 type ReportPreset = {
   id: string;
@@ -139,6 +147,48 @@ function formatAmount(type: ReportType, value: number) {
   if (type === "users") return `${value} orders`;
   if (type === "artisans") return `ETB ${value.toLocaleString()}`;
   return `${value} tasks`;
+}
+
+function formatCurrency(value: number) {
+  return `ETB ${value.toLocaleString()}`;
+}
+
+function shortDate(value: string | Date | null | undefined) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toISOString().slice(0, 10);
+}
+
+function safeNumber(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+}
+
+function horizontalBars(value: number, max: number, width = 20) {
+  if (max <= 0) return "-";
+  const filled = Math.max(0, Math.min(width, Math.round((value / max) * width)));
+  return `${"#".repeat(filled)}${".".repeat(Math.max(0, width - filled))}`;
+}
+
+async function fetchSection<T>(url: string, fallbackMessage: string): Promise<ApiFetchResult<T>> {
+  try {
+    const res = await fetch(url, {
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { ok: false, data: null, message: json?.message || fallbackMessage };
+    }
+    return { ok: true, data: (json?.data as T) ?? null, message: null };
+  } catch {
+    return { ok: false, data: null, message: fallbackMessage };
+  }
 }
 
 function SummaryCards({ rows, reportType, enabled }: { rows: ReportRow[]; reportType: ReportType; enabled: boolean }) {
@@ -426,13 +476,20 @@ function ExportActions({
   generated,
   rows,
   reportType,
+  dateRange,
+  customFrom,
+  customTo,
 }: {
   generated: boolean;
   rows: ReportRow[];
   reportType: ReportType;
+  dateRange: DateRange;
+  customFrom: string;
+  customTo: string;
 }) {
   const [mounted, setMounted] = useState(false);
   const [generatedOn, setGeneratedOn] = useState("");
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -455,6 +512,274 @@ function ExportActions({
     URL.revokeObjectURL(url);
   };
 
+  const downloadPdf = async () => {
+    setExportingPdf(true);
+    try {
+      const base = getApiBase();
+      const { dateFrom, dateTo } = getReportDateRange(dateRange, customFrom, customTo);
+      const dateQuery = `dateFrom=${encodeURIComponent(dateFrom)}&dateTo=${encodeURIComponent(dateTo)}`;
+
+      const [
+        overviewResult,
+        revenueResult,
+        ordersResult,
+        usersResult,
+        auditLogsResult,
+      ] = await Promise.all([
+        fetchSection<any>(`${base}/admin/dashboard/overview?${dateQuery}`, "Overview data not available"),
+        fetchSection<any>(`${base}/admin/dashboard/revenue?${dateQuery}`, "Revenue data not available"),
+        fetchSection<any>(`${base}/admin/dashboard/orders?${dateQuery}`, "Orders data not available"),
+        fetchSection<any>(`${base}/admin/users?page=1&limit=12`, "Users data not available"),
+        fetchSection<any>(`${base}/admin/audit-logs?${dateQuery}`, "Audit logs service unavailable"),
+      ]);
+
+      const doc = new jsPDF("p", "pt", "a4");
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const left = 40;
+      const right = pageWidth - 40;
+      let y = 48;
+
+      const ensurePage = (needed = 40) => {
+        if (y + needed > pageHeight - 40) {
+          doc.addPage();
+          y = 48;
+        }
+      };
+
+      const sectionTitle = (title: string, live: boolean) => {
+        ensurePage(28);
+        doc.setFillColor(live ? 236 : 250, live ? 248 : 240, live ? 238 : 240);
+        doc.roundedRect(left, y - 2, right - left, 22, 4, 4, "F");
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(12);
+        doc.setTextColor(28, 28, 28);
+        doc.text(title, left + 8, y + 13);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(live ? 22 : 128, live ? 101 : 62, live ? 52 : 62);
+        doc.text(live ? "LIVE DATA" : "PLACEHOLDER", right - 10, y + 13, { align: "right" });
+        y += 30;
+      };
+
+      const sectionNote = (text: string) => {
+        ensurePage(22);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+        doc.setTextColor(90, 90, 90);
+        const lines = doc.splitTextToSize(text, right - left);
+        doc.text(lines, left, y);
+        y += lines.length * 13 + 8;
+      };
+
+      const renderKvRows = (rowsToPrint: Array<[string, string]>) => {
+        ensurePage(rowsToPrint.length * 16 + 12);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+        doc.setTextColor(35, 35, 35);
+        rowsToPrint.forEach(([k, v]) => {
+          doc.text(`${k}:`, left, y);
+          doc.setFont("helvetica", "bold");
+          doc.text(v, left + 170, y);
+          doc.setFont("helvetica", "normal");
+          y += 15;
+        });
+        y += 2;
+      };
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(18);
+      doc.setTextColor(30, 30, 30);
+      doc.text("EthioCraft Admin NSV Report", left, y);
+      y += 18;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(90, 90, 90);
+      doc.text(`Generated: ${new Date().toLocaleString()}`, left, y);
+      y += 13;
+      doc.text(`Range: ${shortDate(dateFrom)} to ${shortDate(dateTo)}`, left, y);
+      y += 22;
+
+      sectionTitle("1) Dashboard Overview", overviewResult.ok);
+      if (!overviewResult.ok || !overviewResult.data) {
+        sectionNote(overviewResult.message || "Overview data not available");
+      } else {
+        const overview = overviewResult.data;
+        renderKvRows([
+          ["Total users", String(safeNumber(overview?.counts?.totalUsers))],
+          ["Active artisans", String(safeNumber(overview?.counts?.activeArtisans))],
+          ["Pending samples", String(safeNumber(overview?.counts?.pendingSamples))],
+          ["Successful payments", String(safeNumber(overview?.revenue?.successfulPayments))],
+          ["Revenue in range", formatCurrency(safeNumber(overview?.revenue?.amount))],
+        ]);
+      }
+
+      sectionTitle("2) Revenue Performance", revenueResult.ok);
+      if (!revenueResult.ok || !revenueResult.data) {
+        sectionNote(revenueResult.message || "Revenue data not available");
+      } else {
+        const revenue = revenueResult.data;
+        renderKvRows([
+          ["Successful payments", String(safeNumber(revenue?.totals?.successfulPayments))],
+          ["Revenue total", formatCurrency(safeNumber(revenue?.totals?.amount))],
+          ["Providers tracked", String(Array.isArray(revenue?.byProvider) ? revenue.byProvider.length : 0)],
+        ]);
+
+        const byProvider = Array.isArray(revenue?.byProvider) ? revenue.byProvider : [];
+        autoTable(doc, {
+          startY: y,
+          margin: { left, right: pageWidth - right },
+          head: [["Provider", "Amount (ETB)", "Transactions"]],
+          body: byProvider.slice(0, 6).map((p: any) => [String(p?.provider || "Unknown"), safeNumber(p?.amount).toLocaleString(), String(safeNumber(p?.count))]),
+          styles: { fontSize: 9 },
+          headStyles: { fillColor: [33, 33, 33] },
+        });
+        y = (doc as any).lastAutoTable.finalY + 12;
+
+        const byDay = Array.isArray(revenue?.byDay) ? revenue.byDay.slice(-7) : [];
+        const maxDayValue = byDay.reduce((max: number, item: any) => Math.max(max, safeNumber(item?.amount)), 0);
+        sectionNote("7-day visual summary (# indicates relative volume):");
+        byDay.forEach((item: any) => {
+          ensurePage(12);
+          const amt = safeNumber(item?.amount);
+          doc.text(`${String(item?.day || "Unknown")}  ${horizontalBars(amt, maxDayValue, 24)}  ${formatCurrency(amt)}`, left, y);
+          y += 12;
+        });
+        y += 6;
+      }
+
+      sectionTitle("3) Recent Orders Snapshot", ordersResult.ok);
+      if (!ordersResult.ok || !ordersResult.data) {
+        sectionNote(ordersResult.message || "Orders data not available");
+      } else {
+        const orders = Array.isArray(ordersResult.data?.items) ? ordersResult.data.items : [];
+        autoTable(doc, {
+          startY: y,
+          margin: { left, right: pageWidth - right },
+          head: [["Order", "Customer", "Status", "Amount", "Date"]],
+          body: (orders.length ? orders : [{ id: "—", customer: null, status: "—", totalAmount: 0, createdAt: null }]).slice(0, 10).map((order: any) => [
+            String(order?.id || "—"),
+            `${order?.customer?.firstName || ""} ${order?.customer?.lastName || ""}`.trim() || String(order?.customer?.email || "—"),
+            String(order?.status || "—"),
+            formatCurrency(safeNumber(order?.totalAmount)),
+            shortDate(order?.createdAt),
+          ]),
+          styles: { fontSize: 8.5 },
+          headStyles: { fillColor: [33, 33, 33] },
+        });
+        y = (doc as any).lastAutoTable.finalY + 10;
+      }
+
+      sectionTitle("4) Users Snapshot", usersResult.ok);
+      if (!usersResult.ok || !usersResult.data) {
+        sectionNote(usersResult.message || "Users data not available");
+      } else {
+        const users = Array.isArray(usersResult.data?.items) ? usersResult.data.items : [];
+        autoTable(doc, {
+          startY: y,
+          margin: { left, right: pageWidth - right },
+          head: [["User", "Name", "Role", "Status", "Created"]],
+          body: (users.length ? users : [{ id: "—", firstName: "", lastName: "", role: "—", status: "—", createdAt: null }]).slice(0, 10).map((user: any) => [
+            String(user?.id || "—"),
+            `${user?.firstName || ""} ${user?.lastName || ""}`.trim() || String(user?.email || "—"),
+            String(user?.role || "—"),
+            String(user?.status || "—"),
+            shortDate(user?.createdAt),
+          ]),
+          styles: { fontSize: 8.5 },
+          headStyles: { fillColor: [33, 33, 33] },
+        });
+        y = (doc as any).lastAutoTable.finalY + 10;
+      }
+
+      const products = Array.isArray(overviewResult.data?.products) ? overviewResult.data?.products : null;
+      const drafts = Array.isArray(overviewResult.data?.drafts) ? overviewResult.data?.drafts : null;
+
+      sectionTitle("5) Products & Drafts Health", Boolean(products && drafts && overviewResult.ok));
+      if (!overviewResult.ok || !overviewResult.data) {
+        sectionNote("Products data not available");
+        sectionNote("Drafts data not available");
+      } else {
+        autoTable(doc, {
+          startY: y,
+          margin: { left, right: pageWidth - right },
+          head: [["Products by Status", "Count"]],
+          body: (products && products.length ? products : [{ key: "Products data not available", count: 0 }]).map((p: any) => [String(p?.key || "Unknown"), String(safeNumber(p?.count))]),
+          styles: { fontSize: 9 },
+          headStyles: { fillColor: [33, 33, 33] },
+        });
+        y = (doc as any).lastAutoTable.finalY + 8;
+        autoTable(doc, {
+          startY: y,
+          margin: { left, right: pageWidth - right },
+          head: [["Drafts by Status", "Count"]],
+          body: (drafts && drafts.length ? drafts : [{ key: "Drafts data not available", count: 0 }]).map((d: any) => [String(d?.key || "Unknown"), String(safeNumber(d?.count))]),
+          styles: { fontSize: 9 },
+          headStyles: { fillColor: [33, 33, 33] },
+        });
+        y = (doc as any).lastAutoTable.finalY + 10;
+      }
+
+      sectionTitle("6) Audit Log Highlights", auditLogsResult.ok);
+      if (!auditLogsResult.ok || !auditLogsResult.data) {
+        sectionNote(auditLogsResult.message || "Audit logs service unavailable");
+      } else {
+        const items = Array.isArray(auditLogsResult.data?.items) ? auditLogsResult.data.items : [];
+        autoTable(doc, {
+          startY: y,
+          margin: { left, right: pageWidth - right },
+          head: [["Time", "Action", "Entity", "Description"]],
+          body: (items.length ? items : [{ createdAt: null, action: "—", entityType: "—", description: "No audit records in selected range" }]).slice(0, 12).map((item: any) => [
+            shortDate(item?.createdAt),
+            String(item?.action || "OTHER"),
+            `${String(item?.entityType || "—")} ${String(item?.entityId || "")}`.trim(),
+            `${["DELETE", "OTHER"].includes(String(item?.action || "")) ? "[!]" : ""} ${String(item?.description || "—")}`.trim(),
+          ]),
+          styles: { fontSize: 8.5 },
+          headStyles: { fillColor: [33, 33, 33] },
+        });
+        y = (doc as any).lastAutoTable.finalY + 8;
+      }
+
+      sectionTitle("7) Actionable Insights", true);
+      const insights: string[] = [];
+      const revAmount = safeNumber(revenueResult.data?.totals?.amount);
+      const pendingSamples = safeNumber(overviewResult.data?.counts?.pendingSamples);
+      const activeArtisans = safeNumber(overviewResult.data?.counts?.activeArtisans);
+      if (!overviewResult.ok || !revenueResult.ok) {
+        insights.push("Some insight calculations are based on placeholder sections due to unavailable services.");
+      }
+      insights.push(
+        revAmount > 0
+          ? `Revenue in selected range is ${formatCurrency(revAmount)}. Review top provider mix to optimize payment routing.`
+          : "No measurable revenue found for the selected range. Validate payment flow and date filters.",
+      );
+      insights.push(
+        pendingSamples > 0
+          ? `${pendingSamples} samples are pending review. Assign additional verification capacity to reduce queue time.`
+          : "No pending samples in queue. Verification throughput is currently healthy.",
+      );
+      insights.push(
+        activeArtisans > 0
+          ? `${activeArtisans} active artisans are currently contributing supply. Compare with order trends for stock planning.`
+          : "No active artisans detected in overview. Verify onboarding and account status policies.",
+      );
+      insights.forEach((item) => {
+        ensurePage(16);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(40, 40, 40);
+        doc.setFontSize(10);
+        const lines = doc.splitTextToSize(`- ${item}`, right - left);
+        doc.text(lines, left, y);
+        y += lines.length * 13 + 2;
+      });
+
+      doc.save(`ethiocraft-admin-nsv-report-${new Date().toISOString().slice(0, 10)}.pdf`);
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
   return (
     <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -473,9 +798,10 @@ function ExportActions({
           </button>
           <button
             disabled={!generated}
+            onClick={() => void downloadPdf()}
             className="inline-flex items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm font-medium transition enabled:hover:-translate-y-0.5 enabled:hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-40"
           >
-            <Download className="h-4 w-4" /> Export PDF
+            {exportingPdf ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Export PDF
           </button>
           <button
             disabled={!generated}
@@ -730,7 +1056,14 @@ function App() {
               </div>
             </div>
 
-            <ExportActions generated={generated && !loading} rows={sortedRows} reportType={reportType} />
+            <ExportActions
+              generated={generated && !loading}
+              rows={sortedRows}
+              reportType={reportType}
+              dateRange={dateRange}
+              customFrom={customFrom}
+              customTo={customTo}
+            />
 
             <section className="relative overflow-hidden rounded-3xl border border-stone-200 bg-white p-6 shadow-sm transition-all hover:shadow-md">
               <div className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-[#C6A75E]/5 blur-3xl" />
