@@ -7,7 +7,11 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose, DialogDescription } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Separator } from '@/components/ui/separator'
 import { 
   CheckCircle2, 
   Clock, 
@@ -19,8 +23,95 @@ import {
   Lock,
   UserCheck,
   FileText,
-  Edit
+  Edit,
+  Package,
+  Layers,
+  Sparkles,
+  ImageIcon,
+  Phone,
+  Mail,
+  Hash,
 } from 'lucide-react'
+
+const verificationFieldClass =
+  'rounded-xl border-border/70 bg-background/80 shadow-sm transition-shadow focus-visible:ring-2 focus-visible:ring-primary/30'
+
+const createInitialVerificationForm = (task?: any) => ({
+  title: task?.sampleTitle || task?.name || '',
+  description: '',
+  category: '',
+  price: '',
+  currency: 'ETB',
+  stock: '',
+  measurements: '',
+  materials: '',
+  tags: '',
+  culturalNotes: '',
+  suggestedPricing: '',
+})
+
+/** Match backend updateDraftSchema rules — only include fields that pass validation */
+const buildVerificationDraftPayload = (form: ReturnType<typeof createInitialVerificationForm>, media: {
+  uploadedUrls: string[]
+  modelUrl: string | null
+}) => {
+  const normalizedMaterials = form.materials
+    ? form.materials.split(',').map((s) => s.trim()).filter(Boolean)
+    : []
+  const normalizedTags = form.tags
+    ? form.tags.split(',').map((s) => s.trim()).filter(Boolean)
+    : []
+  const normalizedPrice = form.price.trim() ? Number(form.price) : undefined
+  const normalizedStock = form.stock.trim() ? Number(form.stock) : undefined
+  const normalizedSuggestedPricing = form.suggestedPricing.trim()
+    ? Number(form.suggestedPricing)
+    : undefined
+
+  const title = form.title.trim()
+  const description = form.description.trim()
+  const category = form.category.trim()
+
+  const payload: Record<string, unknown> = {
+    dimensions: { measurements: form.measurements.trim() },
+    materials: normalizedMaterials,
+    culturalMetadata: { notes: form.culturalNotes.trim() },
+    extensionData: {
+      ...(typeof normalizedSuggestedPricing === 'number' && !Number.isNaN(normalizedSuggestedPricing)
+        ? { suggestedPricing: normalizedSuggestedPricing }
+        : {}),
+      ...(media.uploadedUrls.length ? { mediaFiles: media.uploadedUrls } : {}),
+      ...(media.modelUrl ? { modelUrl: media.modelUrl } : {}),
+    },
+  }
+
+  if (title.length >= 3) payload.title = title
+  if (description.length >= 20) payload.description = description
+  if (category.length >= 2) payload.category = category
+  if (typeof normalizedPrice === 'number' && !Number.isNaN(normalizedPrice) && normalizedPrice > 0) {
+    payload.price = normalizedPrice
+  }
+  if (typeof normalizedStock === 'number' && !Number.isNaN(normalizedStock) && normalizedStock >= 0) {
+    payload.stock = Math.floor(normalizedStock)
+  }
+  if (normalizedTags.length) payload.tags = normalizedTags
+
+  return payload
+}
+
+const parseApiErrorMessage = async (res: Response, fallback: string) => {
+  try {
+    const body = await res.json()
+    if (body?.details?.length) {
+      const detailText = body.details.map((d: { path?: string; message?: string }) =>
+        d.path ? `${d.path}: ${d.message}` : d.message,
+      ).join('; ')
+      return detailText || body.message || fallback
+    }
+    return body?.message || fallback
+  } catch {
+    return fallback
+  }
+}
 import Link from 'next/link'
 import { toast } from 'react-toastify'
 import { useAuth } from '@/lib/auth-context'
@@ -54,14 +145,12 @@ export default function AgentDashboard() {
   const [selectedTask, setSelectedTask] = useState<any>(null)
   const [selectedShipment, setSelectedShipment] = useState<any>(null)
   const [verificationTasksData, setVerificationTasksData] = useState<any[]>([])
-  const [verificationForm, setVerificationForm] = useState({
-    measurements: '',
-    materials: '',
-    culturalNotes: '',
-    suggestedPricing: '',
-  })
+  const [verificationForm, setVerificationForm] = useState(createInitialVerificationForm())
   const [verificationErrors, setVerificationErrors] = useState<{ measurements?: string }>({})
   const [uploadedMediaFiles, setUploadedMediaFiles] = useState<any[]>([])
+  const [verificationProgressByTaskId, setVerificationProgressByTaskId] = useState<
+    Record<string, { form: ReturnType<typeof createInitialVerificationForm>; media: any[] }>
+  >({})
   const [dragActive, setDragActive] = useState(false)
   const [drafts, setDrafts] = useState<any[]>([])
   const [agentRegion, setAgentRegion] = useState<string | null>(null)
@@ -126,15 +215,32 @@ export default function AgentDashboard() {
 
   const openVerificationModal = (task: any) => {
     setSelectedTask(task)
-    setVerificationForm({
-      measurements: '',
-      materials: '',
-      culturalNotes: '',
-      suggestedPricing: '',
-    })
+    const taskId = task?.id
+    const cachedProgress = taskId ? verificationProgressByTaskId[taskId] : undefined
+    setVerificationForm(cachedProgress?.form || createInitialVerificationForm(task))
     setVerificationErrors({})
-    setUploadedMediaFiles([])
+    setUploadedMediaFiles(cachedProgress?.media || [])
     setIsVerificationModalOpen(true)
+  }
+
+  const persistVerificationProgress = (taskId?: string | null) => {
+    const id = taskId || selectedTask?.id
+    if (!id) return
+    setVerificationProgressByTaskId((prev) => ({
+      ...prev,
+      [id]: {
+        form: verificationForm,
+        media: uploadedMediaFiles,
+      },
+    }))
+  }
+
+  const handleVerificationModalChange = (open: boolean) => {
+    if (!open) {
+      persistVerificationProgress()
+      setVerificationErrors({})
+    }
+    setIsVerificationModalOpen(open)
   }
 
   // Load server-driven data for dashboard (drafts for verification agents, shipments, profile)
@@ -453,6 +559,8 @@ export default function AgentDashboard() {
 
     const base = (process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, '') || 'http://localhost:4000/api/v1'
     try {
+      const patchPayload = buildVerificationDraftPayload(verificationForm, { uploadedUrls, modelUrl })
+
       // 1. Update draft with agent inputs
       const updateDraftRes = await fetch(`${base}/verifications/products/drafts/${selectedTask?.id}`, {
         method: 'PATCH',
@@ -461,15 +569,13 @@ export default function AgentDashboard() {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
-        body: JSON.stringify({
-          dimensions: { measurements: verificationForm.measurements },
-          materials: verificationForm.materials ? verificationForm.materials.split(',').map((s) => s.trim()).filter(Boolean) : [],
-          culturalMetadata: { notes: verificationForm.culturalNotes },
-          extensionData: { suggestedPricing: verificationForm.suggestedPricing, mediaFiles: uploadedUrls, modelUrl }
-        })
+        body: JSON.stringify(patchPayload)
       });
       
-      if (!updateDraftRes.ok) throw new Error('Failed to update draft with verification data');
+      if (!updateDraftRes.ok) {
+        const message = await parseApiErrorMessage(updateDraftRes, 'Failed to update draft with verification data')
+        throw new Error(message)
+      }
 
       // 2. Mark draft as agent verified
       const reviewRes = await fetch(`${base}/verifications/products/drafts/${selectedTask?.id}/verify`, {
@@ -482,7 +588,10 @@ export default function AgentDashboard() {
         body: JSON.stringify({ notes: verificationForm.culturalNotes || '' })
       });
       
-      if (!reviewRes.ok) throw new Error('Failed to verify draft');
+      if (!reviewRes.ok) {
+        const message = await parseApiErrorMessage(reviewRes, 'Failed to verify draft')
+        throw new Error(message)
+      }
       
       const body = await reviewRes.json();
       const draft = body.data?.draft || body.data;
@@ -490,13 +599,21 @@ export default function AgentDashboard() {
       // Add created draft to local list
       if (draft) setDrafts((prev) => [draft, ...prev])
       setVerificationTasksData((prev) => prev.map((task) => (task.id === selectedTask?.id ? { ...task, status: 'Completed' } : task)))
+      if (selectedTask?.id) {
+        setVerificationProgressByTaskId((prev) => {
+          const next = { ...prev }
+          delete next[selectedTask.id]
+          return next
+        })
+      }
       toast.success('Verification submitted. Product Draft updated and marked as Verified.')
       setIsVerificationModalOpen(false)
       setSelectedDraft(draft)
       setIsDraftModalOpen(true)
     } catch (e) {
       console.error(e)
-      toast.error('Failed to submit verification')
+      const message = e instanceof Error ? e.message : 'Failed to submit verification'
+      toast.error(message)
     }
   }
 
@@ -519,6 +636,68 @@ export default function AgentDashboard() {
     setIsDraftModalOpen(true)
   }
 
+  const getDraftViewData = (draft: any) => {
+    if (!draft) return null
+    const isLocal = Boolean(draft.agentInput)
+    const dimensions = draft.dimensions as { measurements?: string } | string | null | undefined
+    const culturalMetadata = draft.culturalMetadata as { notes?: string } | null | undefined
+    const extensionData = draft.extensionData as {
+      suggestedPricing?: number | string
+      mediaFiles?: string[]
+      modelUrl?: string
+    } | null | undefined
+
+    const measurements = isLocal
+      ? draft.agentInput?.measurements
+      : typeof dimensions === 'object' && dimensions?.measurements
+        ? dimensions.measurements
+        : typeof dimensions === 'string'
+          ? dimensions
+          : '—'
+
+    const materials = isLocal
+      ? draft.agentInput?.materials
+      : Array.isArray(draft.materials)
+        ? draft.materials.join(', ')
+        : '—'
+
+    const culturalNotes = isLocal
+      ? draft.agentInput?.culturalNotes
+      : culturalMetadata?.notes || draft.verificationNotes || '—'
+
+    const suggestedPricing = isLocal
+      ? draft.agentInput?.suggestedPricing
+      : extensionData?.suggestedPricing ?? '—'
+
+    const mediaFiles: string[] = isLocal
+      ? draft.agentInput?.mediaFiles || []
+      : [
+          ...(Array.isArray(extensionData?.mediaFiles) ? extensionData.mediaFiles : []),
+          ...(extensionData?.modelUrl ? [extensionData.modelUrl] : []),
+        ]
+
+    return {
+      id: draft.id,
+      linkedSampleId: draft.linkedSampleId || draft.sampleId || '—',
+      title: draft.title || '—',
+      description: draft.description || '—',
+      category: draft.category || '—',
+      price: draft.price != null ? String(draft.price) : '—',
+      currency: draft.currency || 'ETB',
+      stock: draft.stock != null ? String(draft.stock) : '—',
+      status: draft.status || 'Local draft',
+      tags: Array.isArray(draft.tags) ? draft.tags.join(', ') : '—',
+      measurements: measurements || '—',
+      materials: materials || '—',
+      culturalNotes: culturalNotes || '—',
+      suggestedPricing: suggestedPricing != null && suggestedPricing !== '' ? String(suggestedPricing) : '—',
+      mediaFiles,
+      createdAt: draft.createdAt,
+      updatedAt: draft.updatedAt,
+    }
+  }
+
+  const draftView = getDraftViewData(selectedDraft)
 
   return (
     <div className="min-h-screen bg-background flex flex-col font-inter">
@@ -824,39 +1003,160 @@ export default function AgentDashboard() {
       </Dialog>
 
       {/* 4. Physical Verification Data Entry & Media Upload Modal */}
-      <Dialog open={isVerificationModalOpen} onOpenChange={setIsVerificationModalOpen}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="font-aeonik text-lg uppercase tracking-[0.12em]">
-              Verification Data Entry <span className="text-muted-foreground font-mono text-sm normal-case ml-2">{selectedTask?.id}</span>
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-6 pt-2">
-            <div className="bg-muted/30 p-4 rounded-lg border border-border">
-              <h4 className="font-semibold text-sm mb-1">{selectedTask?.name}</h4>
-              <p className="text-xs text-muted-foreground">Task Type: {selectedTask?.type} | Location: {selectedTask?.location}</p>
+      <Dialog open={isVerificationModalOpen} onOpenChange={handleVerificationModalChange}>
+        <DialogContent className="flex max-h-[92vh] max-w-6xl flex-col gap-0 overflow-hidden border-border/60 p-0 shadow-2xl sm:rounded-2xl">
+          {/* Hero header */}
+          <div className="relative shrink-0 overflow-hidden border-b border-border/60 bg-gradient-to-br from-primary/10 via-background to-secondary/10 px-6 py-5 pr-14">
+            <div className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full bg-primary/10 blur-2xl" />
+            <div className="pointer-events-none absolute -bottom-10 left-1/3 h-24 w-24 rounded-full bg-secondary/20 blur-2xl" />
+            <DialogHeader className="relative space-y-3 text-left">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="outline" className="border-primary/30 bg-primary/5 text-primary font-aeonik text-[10px] uppercase tracking-wider">
+                  <Sparkles className="mr-1 h-3 w-3" />
+                  Verification workspace
+                </Badge>
+                {selectedTask?.status && (
+                  <Badge className={getStatusColor(selectedTask.status)}>{selectedTask.status}</Badge>
+                )}
+              </div>
+              <DialogTitle className="font-aeonik text-xl uppercase tracking-[0.08em] sm:text-2xl">
+                Verification Data Entry
+              </DialogTitle>
+              <DialogDescription className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                <span className="inline-flex items-center gap-1 font-mono text-xs text-muted-foreground">
+                  <Hash className="h-3.5 w-3.5" />
+                  {selectedTask?.id}
+                </span>
+                <span className="hidden text-border sm:inline">|</span>
+                <span className="inline-flex items-center gap-1">
+                  <MapPin className="h-3.5 w-3.5 text-primary" />
+                  {selectedTask?.location || 'Location TBD'}
+                </span>
+              </DialogDescription>
+            </DialogHeader>
+            <div className="relative mt-4 flex flex-col gap-3 rounded-xl border border-border/50 bg-background/70 p-4 shadow-sm backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="font-inter text-base font-semibold">{selectedTask?.name}</p>
+                <p className="text-xs text-muted-foreground">Task type · {selectedTask?.type || 'Draft verification'}</p>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Clock className="h-3.5 w-3.5" />
+                {selectedTask?.date ? new Date(selectedTask.date).toLocaleDateString() : 'Today'}
+              </div>
             </div>
+          </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Data Form */}
-              <div className="space-y-4">
-                <h3 className="font-aeonik text-sm uppercase tracking-[0.12em] font-bold border-b border-border pb-2">Physical Specs</h3>
+          {/* Scrollable body */}
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              {/* Product draft fields */}
+              <section className="space-y-4 rounded-2xl border border-border/60 bg-card/40 p-5 shadow-sm backdrop-blur-[2px]">
+                <div className="flex items-center gap-3 border-b border-border/50 pb-3">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <Package className="h-4 w-4" />
+                  </span>
+                  <div>
+                    <h3 className="font-aeonik text-sm font-bold uppercase tracking-[0.1em]">Product draft</h3>
+                    <p className="text-xs text-muted-foreground">Core listing fields from schema</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Title</Label>
+                    <Input
+                      className={verificationFieldClass}
+                      placeholder="Handwoven cotton shawl"
+                      value={verificationForm.title}
+                      onChange={(e) => setVerificationForm((prev) => ({ ...prev, title: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Description</Label>
+                    <Textarea
+                      className={`${verificationFieldClass} min-h-[88px] resize-y`}
+                      placeholder="Describe craftsmanship, finish, and usage..."
+                      value={verificationForm.description}
+                      onChange={(e) => setVerificationForm((prev) => ({ ...prev, description: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Category</Label>
+                    <Input
+                      className={verificationFieldClass}
+                      placeholder="Textiles"
+                      value={verificationForm.category}
+                      onChange={(e) => setVerificationForm((prev) => ({ ...prev, category: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Currency</Label>
+                    <Input
+                      className={verificationFieldClass}
+                      placeholder="ETB"
+                      value={verificationForm.currency}
+                      onChange={(e) => setVerificationForm((prev) => ({ ...prev, currency: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Price</Label>
+                    <Input
+                      type="number"
+                      className={verificationFieldClass}
+                      placeholder="0.00"
+                      value={verificationForm.price}
+                      onChange={(e) => setVerificationForm((prev) => ({ ...prev, price: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Stock</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      className={verificationFieldClass}
+                      placeholder="0"
+                      value={verificationForm.stock}
+                      onChange={(e) => setVerificationForm((prev) => ({ ...prev, stock: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                <Separator className="bg-border/60" />
+
+                <div className="flex items-center gap-3">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-secondary/15 text-secondary-foreground">
+                    <Layers className="h-3.5 w-3.5" />
+                  </span>
+                  <p className="font-aeonik text-xs font-bold uppercase tracking-[0.1em] text-muted-foreground">Verification details</p>
+                </div>
+
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold text-muted-foreground uppercase">Materials Verified</label>
-                  <textarea
-                    className="w-full p-3 border border-border rounded bg-background min-h-[60px]"
+                  <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Materials verified</Label>
+                  <Textarea
+                    className={`${verificationFieldClass} min-h-[64px]`}
                     placeholder="E.g., 100% pure cotton, natural dye..."
                     value={verificationForm.materials}
                     onChange={(e) => setVerificationForm((prev) => ({ ...prev, materials: e.target.value }))}
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold text-muted-foreground uppercase">Measurements / Dimensions / Weight *</label>
-                  <input
-                    type="text"
+                  <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Tags</Label>
+                  <Input
+                    className={verificationFieldClass}
+                    placeholder="heritage, handmade, cotton"
+                    value={verificationForm.tags}
+                    onChange={(e) => setVerificationForm((prev) => ({ ...prev, tags: e.target.value }))}
+                  />
+                  <p className="text-[11px] text-muted-foreground">Comma-separated</p>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Measurements / dimensions / weight <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
                     required
-                    className={`w-full p-3 border rounded bg-background ${verificationErrors.measurements ? 'border-destructive' : 'border-border'}`}
-                    placeholder="20cm x 15cm, 1.2kg"
+                    className={`${verificationFieldClass} ${verificationErrors.measurements ? 'border-destructive ring-destructive/30' : ''}`}
+                    placeholder="20cm × 15cm · 1.2kg"
                     value={verificationForm.measurements}
                     onChange={(e) => {
                       setVerificationForm((prev) => ({ ...prev, measurements: e.target.value }))
@@ -868,110 +1168,176 @@ export default function AgentDashboard() {
                   )}
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold text-muted-foreground uppercase">Cultural Context / Notes</label>
-                  <textarea
-                    className="w-full p-3 border border-border rounded bg-background min-h-[60px]"
+                  <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Cultural context</Label>
+                  <Textarea
+                    className={`${verificationFieldClass} min-h-[64px]`}
                     placeholder="Confirm cultural authenticity markers..."
                     value={verificationForm.culturalNotes}
                     onChange={(e) => setVerificationForm((prev) => ({ ...prev, culturalNotes: e.target.value }))}
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold text-muted-foreground uppercase">Pricing Recommendation (USD)</label>
-                  <input
+                  <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Pricing recommendation (USD)</Label>
+                  <Input
                     type="number"
-                    className="w-full p-3 border border-border rounded bg-background"
+                    className={verificationFieldClass}
                     placeholder="Suggest retail price..."
                     value={verificationForm.suggestedPricing}
                     onChange={(e) => setVerificationForm((prev) => ({ ...prev, suggestedPricing: e.target.value }))}
                   />
                 </div>
-              </div>
+              </section>
 
-              {/* Media Upload */}
-              <div className="space-y-4">
-                <h3 className="font-aeonik text-sm uppercase tracking-[0.12em] font-bold border-b border-border pb-2">Professional Media</h3>
-                <div className="space-y-2">
-                  <label className="text-xs font-semibold text-muted-foreground uppercase">High-Res Photos & 3D Scans</label>
-                  <div
-                    onDrop={handleDrop}
-                    onDragOver={handleDragOver}
-                    onDragLeave={handleDragLeave}
-                    className={`border-2 border-dashed border-border rounded-lg p-8 text-center bg-muted/10 transition-colors ${dragActive ? 'ring-2 ring-primary/40 bg-muted/20' : 'hover:bg-muted/30'} cursor-pointer flex flex-col items-center justify-center min-h-[220px]`}
-                  >
-                    <div className="flex gap-2 mb-3">
-                      <Camera className="w-6 h-6 text-muted-foreground" />
-                      <Upload className="w-6 h-6 text-muted-foreground" />
-                    </div>
-                    <p className="text-sm font-medium mb-1">Drag & drop media files</p>
-                    <p className="text-xs text-muted-foreground mb-4">Supports JPG, PNG, MP4, GLTF (max 50MB)</p>
-                    <input
-                      id="verification-media-upload"
-                      type="file"
-                      className="hidden"
-                      multiple
-                      accept=".jpg,.jpeg,.png,.mp4,.gltf,.glb,.obj,.fbx,.stl,.ply,.usdz"
-                      onChange={handleMediaUpload}
-                    />
-                    <Button type="button" variant="outline" onClick={() => (document.getElementById('verification-media-upload') as HTMLInputElement)?.click()}>Select Files</Button>
-
-                    {uploadedMediaFiles.length > 0 && (
-                      <div className="mt-4 space-y-2">
-                        {uploadedMediaFiles.map((m) => (
-                          <div key={m.name} className="flex items-center justify-between p-2 border rounded bg-muted/10">
-                            <div className="flex items-center gap-3">
-                              <div className="w-16 h-12 bg-muted/20 rounded overflow-hidden flex items-center justify-center">
-                                {m.previewUrl ? <img src={m.previewUrl} alt={m.name} className="object-cover w-full h-full" /> : <span className="text-xs">{m.name}</span>}
-                              </div>
-                              <div className="text-sm">
-                                <div className="font-medium">{m.name}</div>
-                                <div className="text-xs text-muted-foreground">{m.size ? `${Math.round(m.size/1024)} KB` : ''}</div>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {m.status === 'uploading' && (
-                                <div className="w-36 bg-muted rounded h-2 overflow-hidden">
-                                  <div className="bg-primary h-2" style={{ width: `${m.progress || 0}%` }} />
-                                </div>
-                              )}
-                              {m.status === 'error' && <span className="text-destructive text-xs mr-2">{m.error}</span>}
-                              {m.status === 'error' && (
-                                <Button size="sm" variant="ghost" onClick={() => handleRetryUpload(m)}>Retry</Button>
-                              )}
-                              {m.is3D && (
-                                <a href={m.previewUrl} download={m.name} className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-8 px-3">Download</a>
-                              )}
-                              <Button size="sm" variant="ghost" onClick={() => removeUploadedMedia(m.name)}>Remove</Button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+              {/* Media upload */}
+              <section className="space-y-4 rounded-2xl border border-border/60 bg-card/40 p-5 shadow-sm backdrop-blur-[2px]">
+                <div className="flex items-center gap-3 border-b border-border/50 pb-3">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-secondary/15 text-secondary-foreground">
+                    <ImageIcon className="h-4 w-4" />
+                  </span>
+                  <div>
+                    <h3 className="font-aeonik text-sm font-bold uppercase tracking-[0.1em]">Professional media</h3>
+                    <p className="text-xs text-muted-foreground">Photos, video & 3D assets</p>
                   </div>
                 </div>
-              </div>
+
+                <div
+                  onDrop={handleDrop}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  className={`group relative flex min-h-[260px] cursor-pointer flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed p-8 text-center transition-all duration-300 ${
+                    dragActive
+                      ? 'border-primary bg-primary/5 shadow-[0_0_0_4px_hsl(var(--primary)/0.12)]'
+                      : 'border-border/70 bg-gradient-to-b from-muted/20 to-background hover:border-primary/40 hover:bg-muted/25'
+                  }`}
+                >
+                  <div className={`mb-4 flex h-14 w-14 items-center justify-center rounded-2xl transition-colors ${dragActive ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary'}`}>
+                    <div className="flex gap-1">
+                      <Camera className="h-5 w-5" />
+                      <Upload className="h-5 w-5" />
+                    </div>
+                  </div>
+                  <p className="font-inter text-sm font-semibold">Drag & drop media files</p>
+                  <p className="mt-1 max-w-xs text-xs text-muted-foreground">
+                    JPG, PNG, MP4, GLTF · max 50MB per file
+                  </p>
+                  <input
+                    id="verification-media-upload"
+                    type="file"
+                    className="hidden"
+                    multiple
+                    accept=".jpg,.jpeg,.png,.mp4,.gltf,.glb,.obj,.fbx,.stl,.ply,.usdz"
+                    onChange={handleMediaUpload}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="mt-5 rounded-full border-border/80 px-5 shadow-sm"
+                    onClick={() => (document.getElementById('verification-media-upload') as HTMLInputElement)?.click()}
+                  >
+                    Browse files
+                  </Button>
+
+                  {uploadedMediaFiles.length > 0 && (
+                    <div className="mt-6 w-full space-y-2 text-left">
+                      {uploadedMediaFiles.map((m) => (
+                        <div
+                          key={m.name}
+                          className="flex flex-col gap-3 rounded-xl border border-border/60 bg-background/90 p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="h-12 w-16 shrink-0 overflow-hidden rounded-lg bg-muted ring-1 ring-border/50">
+                              {m.previewUrl ? (
+                                <img src={m.previewUrl} alt={m.name} className="h-full w-full object-cover" />
+                              ) : (
+                                <span className="flex h-full items-center justify-center text-[10px] text-muted-foreground px-1 truncate">{m.name}</span>
+                              )}
+                            </div>
+                            <div className="min-w-0 text-sm">
+                              <div className="truncate font-medium">{m.name}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {m.size ? `${Math.round(m.size / 1024)} KB` : ''}
+                                {m.is3D ? ' · 3D model' : ''}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            {m.status === 'uploading' && (
+                              <div className="h-2 w-full min-w-[120px] overflow-hidden rounded-full bg-muted sm:w-28">
+                                <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${m.progress || 0}%` }} />
+                              </div>
+                            )}
+                            {m.status === 'error' && <span className="text-xs text-destructive">{m.error}</span>}
+                            {m.status === 'error' && (
+                              <Button size="sm" variant="ghost" onClick={() => handleRetryUpload(m)}>Retry</Button>
+                            )}
+                            {m.is3D && (
+                              <a
+                                href={m.previewUrl}
+                                download={m.name}
+                                className="inline-flex h-8 items-center rounded-md px-3 text-sm font-medium hover:bg-accent hover:text-accent-foreground"
+                              >
+                                Download
+                              </a>
+                            )}
+                            <Button size="sm" variant="ghost" onClick={() => removeUploadedMedia(m.name)}>Remove</Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </section>
             </div>
 
-            <div className="bg-muted/30 p-4 rounded-lg border border-border">
-              <h4 className="font-semibold text-sm mb-2">Artisan & Sample Details (Pre-populated)</h4>
-              <div className="text-sm space-y-1 text-muted-foreground">
-                <p><span className="font-medium text-foreground">Sample:</span> {selectedTask?.sampleTitle || selectedTask?.name}</p>
-                <p><span className="font-medium text-foreground">Sample ID:</span> {selectedTask?.id}</p>
-                <p><span className="font-medium text-foreground">Artisan Name:</span> {selectedTask?.name}</p>
-                <p><span className="font-medium text-foreground">Artisan Phone:</span> {selectedTask?.artisanPhone || 'Not available'}</p>
-                <p><span className="font-medium text-foreground">Artisan Email:</span> {selectedTask?.artisanEmail || 'Not available'}</p>
-                <p><span className="font-medium text-foreground">Meeting Location:</span> {selectedTask?.location}</p>
+            {/* Artisan context */}
+            <section className="mt-6 rounded-2xl border border-border/60 bg-muted/20 p-5">
+              <div className="mb-4 flex items-center gap-3">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-background text-foreground shadow-sm ring-1 ring-border/50">
+                  <UserCheck className="h-4 w-4" />
+                </span>
+                <div>
+                  <h4 className="font-aeonik text-sm font-bold uppercase tracking-[0.1em]">Artisan & sample</h4>
+                  <p className="text-xs text-muted-foreground">Pre-populated reference</p>
+                </div>
               </div>
-            </div>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {[
+                  { label: 'Sample', value: selectedTask?.sampleTitle || selectedTask?.name },
+                  { label: 'Sample ID', value: selectedTask?.id, mono: true },
+                  { label: 'Artisan', value: selectedTask?.name },
+                  { label: 'Phone', value: selectedTask?.artisanPhone || '—', icon: Phone },
+                  { label: 'Email', value: selectedTask?.artisanEmail || '—', icon: Mail },
+                  { label: 'Location', value: selectedTask?.location || '—', icon: MapPin },
+                ].map((item) => (
+                  <div
+                    key={item.label}
+                    className="rounded-xl border border-border/50 bg-background/80 px-4 py-3 shadow-sm"
+                  >
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{item.label}</p>
+                    <p className={`mt-1 flex items-center gap-1.5 text-sm font-medium text-foreground ${item.mono ? 'font-mono text-xs' : ''}`}>
+                      {item.icon && <item.icon className="h-3.5 w-3.5 shrink-0 text-primary" />}
+                      <span className="truncate">{item.value}</span>
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </div>
 
-            <div className="flex justify-between items-center pt-4 border-t border-border">
-              <Button variant="ghost" className="text-destructive hover:bg-destructive/10 hover:text-destructive">
-                Flag Issue
+          {/* Sticky footer — always visible */}
+          <div className="z-10 flex shrink-0 flex-col-reverse gap-3 border-t border-border/60 bg-background px-6 py-4 shadow-[0_-8px_24px_-8px_rgba(0,0,0,0.12)] sm:flex-row sm:items-center sm:justify-between">
+            <Button variant="ghost" className="text-destructive hover:bg-destructive/10 hover:text-destructive">
+              <AlertCircle className="mr-2 h-4 w-4" />
+              Flag issue
+            </Button>
+            <div className="flex flex-wrap gap-2 sm:justify-end">
+              <Button variant="outline" className="rounded-full" onClick={saveDraft}>
+                Save draft
               </Button>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={saveDraft}>Save Draft</Button>
-                <Button onClick={handleSubmitVerification}>Submit Verification</Button>
-              </div>
+              <Button className="rounded-full px-6 shadow-md" onClick={handleSubmitVerification}>
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+                Submit verification
+              </Button>
             </div>
           </div>
         </DialogContent>
@@ -1026,41 +1392,173 @@ export default function AgentDashboard() {
 
       {/* Draft Viewer Modal */}
       <Dialog open={isDraftModalOpen} onOpenChange={setIsDraftModalOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="font-aeonik text-lg uppercase tracking-[0.12em]">Product Draft</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 pt-2">
-            {selectedDraft ? (
-              <div>
-                <p className="text-sm text-muted-foreground">Draft ID: <span className="font-medium text-foreground">{selectedDraft.id}</span></p>
-                <p className="text-sm text-muted-foreground">Linked Sample: <span className="font-medium text-foreground">{selectedDraft.linkedSampleId}</span></p>
-                <div className="mt-3 space-y-2">
-                  <h4 className="font-semibold">Agent Input</h4>
-                  <p className="text-sm"><strong>Measurements:</strong> {selectedDraft.agentInput?.measurements || selectedDraft.agentInput?.measurements}</p>
-                  <p className="text-sm"><strong>Materials:</strong> {selectedDraft.agentInput?.materials}</p>
-                  <p className="text-sm"><strong>Notes:</strong> {selectedDraft.agentInput?.culturalNotes}</p>
-                  <p className="text-sm"><strong>Pricing:</strong> {selectedDraft.agentInput?.suggestedPricing}</p>
-                </div>
-                {selectedDraft.agentInput?.mediaFiles && (
-                  <div className="mt-3">
-                    <h5 className="font-medium">Media</h5>
-                    <div className="flex gap-2 mt-2 flex-wrap">
-                      {selectedDraft.agentInput.mediaFiles.map((m: string) => (
-                        <div key={m} className="p-2 border rounded bg-muted/10 text-xs">{m}</div>
-                      ))}
+        <DialogContent className="flex max-h-[90vh] max-w-3xl flex-col gap-0 overflow-hidden border-border/60 p-0 shadow-2xl sm:rounded-2xl">
+          <div className="relative shrink-0 overflow-hidden border-b border-border/60 bg-gradient-to-br from-secondary/15 via-background to-primary/10 px-6 py-5 pr-14">
+            <div className="pointer-events-none absolute -right-6 -top-6 h-28 w-28 rounded-full bg-secondary/20 blur-2xl" />
+            <DialogHeader className="relative space-y-3 text-left">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="outline" className="border-secondary/40 bg-secondary/10 font-aeonik text-[10px] uppercase tracking-wider">
+                  <FileText className="mr-1 h-3 w-3" />
+                  Draft preview
+                </Badge>
+                {draftView?.status && (
+                  <Badge className={getStatusColor(draftView.status)}>{draftView.status}</Badge>
+                )}
+              </div>
+              <DialogTitle className="font-aeonik text-xl uppercase tracking-[0.08em] sm:text-2xl">
+                Product Draft
+              </DialogTitle>
+              <DialogDescription className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                {draftView ? (
+                  <>
+                    <span className="inline-flex items-center gap-1 font-mono text-xs text-muted-foreground">
+                      <Hash className="h-3.5 w-3.5" />
+                      {draftView.id}
+                    </span>
+                    <span className="hidden text-border sm:inline">|</span>
+                    <span className="text-muted-foreground">
+                      Linked sample · <span className="font-mono text-foreground">{draftView.linkedSampleId}</span>
+                    </span>
+                  </>
+                ) : (
+                  'Review saved or submitted draft details'
+                )}
+              </DialogDescription>
+            </DialogHeader>
+            {draftView && (
+              <div className="relative mt-4 rounded-xl border border-border/50 bg-background/70 p-4 shadow-sm backdrop-blur-sm">
+                <p className="font-inter text-base font-semibold">{draftView.title}</p>
+                <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{draftView.description}</p>
+              </div>
+            )}
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
+            {!draftView ? (
+              <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/70 bg-muted/10 py-16 text-center">
+                <FileText className="mb-3 h-10 w-10 text-muted-foreground/50" />
+                <p className="text-sm text-muted-foreground">No draft selected</p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <section className="rounded-2xl border border-border/60 bg-card/40 p-5 shadow-sm backdrop-blur-[2px]">
+                  <div className="mb-4 flex items-center gap-3 border-b border-border/50 pb-3">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                      <Package className="h-4 w-4" />
+                    </span>
+                    <div>
+                      <h3 className="font-aeonik text-sm font-bold uppercase tracking-[0.1em]">Listing details</h3>
+                      <p className="text-xs text-muted-foreground">Product draft schema fields</p>
                     </div>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {[
+                      { label: 'Category', value: draftView.category },
+                      { label: 'Price', value: `${draftView.price} ${draftView.currency}` },
+                      { label: 'Stock', value: draftView.stock },
+                      { label: 'Tags', value: draftView.tags },
+                    ].map((item) => (
+                      <div
+                        key={item.label}
+                        className="rounded-xl border border-border/50 bg-background/80 px-4 py-3 shadow-sm"
+                      >
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{item.label}</p>
+                        <p className="mt-1 truncate text-sm font-medium text-foreground">{item.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="rounded-2xl border border-border/60 bg-card/40 p-5 shadow-sm backdrop-blur-[2px]">
+                  <div className="mb-4 flex items-center gap-3 border-b border-border/50 pb-3">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-secondary/15 text-secondary-foreground">
+                      <Layers className="h-4 w-4" />
+                    </span>
+                    <div>
+                      <h3 className="font-aeonik text-sm font-bold uppercase tracking-[0.1em]">Agent verification</h3>
+                      <p className="text-xs text-muted-foreground">Physical inspection & notes</p>
+                    </div>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {[
+                      { label: 'Measurements', value: draftView.measurements },
+                      { label: 'Materials', value: draftView.materials },
+                      { label: 'Cultural notes', value: draftView.culturalNotes, span: true },
+                      { label: 'Suggested pricing (USD)', value: draftView.suggestedPricing },
+                    ].map((item) => (
+                      <div
+                        key={item.label}
+                        className={`rounded-xl border border-border/50 bg-background/80 px-4 py-3 shadow-sm ${item.span ? 'sm:col-span-2' : ''}`}
+                      >
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{item.label}</p>
+                        <p className="mt-1 text-sm font-medium text-foreground">{item.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                {draftView.mediaFiles.length > 0 && (
+                  <section className="rounded-2xl border border-border/60 bg-card/40 p-5 shadow-sm backdrop-blur-[2px]">
+                    <div className="mb-4 flex items-center gap-3 border-b border-border/50 pb-3">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-secondary/15 text-secondary-foreground">
+                        <ImageIcon className="h-4 w-4" />
+                      </span>
+                      <div>
+                        <h3 className="font-aeonik text-sm font-bold uppercase tracking-[0.1em]">Media assets</h3>
+                        <p className="text-xs text-muted-foreground">{draftView.mediaFiles.length} file(s)</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {draftView.mediaFiles.map((url: string) => {
+                        const isImage = /\.(jpe?g|png|gif|webp)(\?|$)/i.test(url)
+                        return (
+                          <div
+                            key={url}
+                            className="group overflow-hidden rounded-xl border border-border/60 bg-background shadow-sm"
+                          >
+                            {isImage ? (
+                              <div className="h-20 w-28 bg-muted">
+                                <img src={url} alt="" className="h-full w-full object-cover" />
+                              </div>
+                            ) : (
+                              <div className="flex h-20 w-36 items-center gap-2 px-3">
+                                <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                <span className="truncate text-xs font-medium">{url.split('/').pop() || url}</span>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </section>
+                )}
+
+                {(draftView.createdAt || draftView.updatedAt) && (
+                  <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+                    {draftView.createdAt && (
+                      <span className="inline-flex items-center gap-1">
+                        <Clock className="h-3.5 w-3.5" />
+                        Created {new Date(draftView.createdAt).toLocaleString()}
+                      </span>
+                    )}
+                    {draftView.updatedAt && (
+                      <span className="inline-flex items-center gap-1">
+                        <Edit className="h-3.5 w-3.5" />
+                        Updated {new Date(draftView.updatedAt).toLocaleString()}
+                      </span>
+                    )}
                   </div>
                 )}
               </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">No draft selected</p>
             )}
-            <div className="flex justify-end gap-2 pt-2">
-              <DialogClose asChild>
-                <Button variant="outline">Close</Button>
-              </DialogClose>
-            </div>
+          </div>
+
+          <div className="z-10 flex shrink-0 justify-end gap-2 border-t border-border/60 bg-background px-6 py-4 shadow-[0_-8px_24px_-8px_rgba(0,0,0,0.12)]">
+            <DialogClose asChild>
+              <Button variant="outline" className="rounded-full px-6">
+                Close
+              </Button>
+            </DialogClose>
           </div>
         </DialogContent>
       </Dialog>
