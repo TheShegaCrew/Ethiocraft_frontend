@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Header } from '@/components/shared/header';
 import { Footer } from '@/components/shared/footer';
+import { useGuestRedirect } from '@/lib/auth-context';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -25,6 +26,7 @@ type RegisterFormData = z.infer<typeof registerSchema>;
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { isAuthLoading, isAuthenticated } = useGuestRedirect();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -81,6 +83,10 @@ export default function RegisterPage() {
       setIsSubmitting(false);
     }
   };
+
+  if (isAuthLoading || isAuthenticated) {
+    return null;
+  }
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden text-[#1C1C1C] font-inter flex flex-col">
