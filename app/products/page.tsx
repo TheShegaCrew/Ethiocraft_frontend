@@ -166,7 +166,6 @@ function ProductPageContent() {
 
   /** Any published category label (URL + API may expose values beyond the curated list below). */
   const [activeCategory, setActiveCategory] = useState<string>("All");
-  const [showNewOnly, setShowNewOnly] = useState(false);
   const [showHandmadeOnly, setShowHandmadeOnly] = useState(false);
   const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
   const [selectedMaterials, setSelectedMaterials] = useState<string[]>([]);
@@ -352,14 +351,12 @@ function ProductPageContent() {
   ]);
 
   const filteredProducts = useMemo(() => {
-    let base = products
-      .filter((product) => (showNewOnly ? product.badge === "New" : true))
-      .filter((product) =>
-        showHandmadeOnly ? product.badge === "Handmade" : true,
-      );
+    let base = products.filter((product) =>
+      showHandmadeOnly ? product.badge === "Handmade" : true,
+    );
 
     return base;
-  }, [products, showHandmadeOnly, showNewOnly]);
+  }, [products, showHandmadeOnly]);
 
   useEffect(() => {
     setVisibleIds([]);
@@ -407,7 +404,6 @@ function ProductPageContent() {
 
   const resetFilters = () => {
     setActiveCategory("All");
-    setShowNewOnly(false);
     setShowHandmadeOnly(false);
     setSelectedRegions([]);
     setSelectedMaterials([]);
@@ -464,7 +460,6 @@ function ProductPageContent() {
 
   const hasActiveFilters =
     activeCategory !== "All" ||
-    showNewOnly ||
     showHandmadeOnly ||
     selectedRegions.length > 0 ||
     selectedMaterials.length > 0 ||
@@ -727,20 +722,6 @@ function ProductPageContent() {
               onChange={(e) => setShowHandmadeOnly(e.target.checked)}
             />
             Handmade only
-          </label>
-          <label
-            className={
-              isSidebar
-                ? "flex cursor-pointer items-center gap-2 text-xs"
-                : "flex cursor-pointer items-center gap-3 text-sm"
-            }
-          >
-            <input
-              type="checkbox"
-              checked={showNewOnly}
-              onChange={(e) => setShowNewOnly(e.target.checked)}
-            />
-            New arrivals only
           </label>
         </div>
 

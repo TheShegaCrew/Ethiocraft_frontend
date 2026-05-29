@@ -617,8 +617,8 @@ export default function ArtisanDashboard() {
                           <th className="font-aeonik text-left text-xs uppercase tracking-[0.12em] py-3 px-4">Order</th>
                           <th className="font-aeonik text-left text-xs uppercase tracking-[0.12em] py-3 px-4">Items</th>
                           <th className="font-aeonik text-left text-xs uppercase tracking-[0.12em] py-3 px-4">Total</th>
-                          <th className="font-aeonik text-left text-xs uppercase tracking-[0.12em] py-3 px-4">Status</th>
-                          <th className="font-aeonik text-left text-xs uppercase tracking-[0.12em] py-3 px-4">Date</th>
+                          {/* <th className="font-aeonik text-left text-xs uppercase tracking-[0.12em] py-3 px-4">Status</th> */}
+                          <th className="font-aeonik text-left text-xs uppercase tracking-[0.12em] py-3 px-4">Date</th>``
                         </tr>
                       </thead>
                       <tbody>
@@ -631,9 +631,9 @@ export default function ArtisanDashboard() {
                             <td className="py-3 px-4 font-bold text-secondary">
                               {formatPrice(order.totalAmount, order.currency)}
                             </td>
-                            <td className="py-3 px-4">
+                            {/* <td className="py-3 px-4">
                               <Badge className={statusBadgeClass(order.status)}>{formatStatus(order.status)}</Badge>
-                            </td>
+                            </td> */}
                             <td className="py-3 px-4 text-sm text-muted-foreground">
                               {new Date(order.createdAt).toLocaleDateString()}
                             </td>

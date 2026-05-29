@@ -82,7 +82,7 @@ export default function CheckoutPage() {
     { id: 'review', label: 'Review', icon: CheckCircle },
   ] as const
 
-  const shippingCost = formData.shippingMethod === 'express' ? 750 : 250
+  const shippingCost = formData.shippingMethod === 'express' ? 450 : 150
   const orderData = useMemo(() => {
     const subtotal = cartTotal
     const total = subtotal + shippingCost

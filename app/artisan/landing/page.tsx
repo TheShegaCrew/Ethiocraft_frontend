@@ -41,14 +41,14 @@ const featureRows: FeatureRow[] = [
     description:
       "Your products are no longer limited to your town. They become visible nationwide.",
     image:
-      "https://images.unsplash.com/photo-1472851294608-062f824d29cc?auto=format&fit=crop&w=1200&q=80",
+      "/placeholder-product.jpg",
   },
   {
     icon: CircleDollarSign,
     title: "Earn Fairly",
     description: "No middlemen. You control your pricing and income.",
     image:
-      "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1200&q=80",
+      "/placeholder-product.jpg",
   },
   {
     icon: ShieldCheck,
@@ -56,7 +56,7 @@ const featureRows: FeatureRow[] = [
     description:
       "Every product goes through verification so customers trust your work.",
     image:
-      "https://images.unsplash.com/photo-1454165205744-3b78555e5572?auto=format&fit=crop&w=1200&q=80",
+      "/placeholder-user.jpg",
   },
   {
     icon: HandHelping,
@@ -64,21 +64,21 @@ const featureRows: FeatureRow[] = [
     description:
       "A simple assistant guides you step-by-step whenever you need support.",
     image:
-      "https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=1200&q=80",
+      "/hero_page1.jpg",
   },
   {
     icon: ImagePlus,
     title: "Show Your Craft Beautifully",
     description: "High-quality images and 3D views help your work stand out.",
     image:
-      "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=1200&q=80",
+      "/placeholder-product.jpg",
   },
   {
     icon: Sparkles,
     title: "Preserve Your Story",
     description: "Your craft becomes part of Ethiopia’s digital heritage.",
     image:
-      "https://images.unsplash.com/photo-1460661419201-fd4cecdf8a8b?auto=format&fit=crop&w=1200&q=80",
+      "/hero_craft.jpg",
   },
 ];
 
@@ -185,7 +185,7 @@ export default function App() {
       <section className="relative flex min-h-[90vh] items-center overflow-hidden px-6 py-16 md:px-12 lg:px-20">
         <div className="absolute inset-0">
           <img
-            src="https://images.unsplash.com/photo-1452860606245-08befc0ff44b?auto=format&fit=crop&w=2000&q=80"
+            src="/hero_page.jpg"
             alt="Ethiopian artisan crafting"
             className="h-full w-full object-cover"
             style={{
@@ -316,7 +316,7 @@ export default function App() {
           </div>
           <div className="relative overflow-hidden rounded-3xl">
             <img
-              src="https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=1500&q=80"
+              src="/hero_craft.jpg"
               alt="Traditional market and digital commerce"
               className="h-[520px] w-full object-cover"
               style={{
@@ -521,7 +521,7 @@ export default function App() {
       >
         <div className="absolute inset-0">
           <img
-            src="https://images.unsplash.com/photo-1543087903-1ac2ec7aa8fe?auto=format&fit=crop&w=2000&q=80"
+            src="/placeholder-product.jpg"
             alt="Ethiopian textile pattern backdrop"
             className="h-full w-full object-cover"
           />

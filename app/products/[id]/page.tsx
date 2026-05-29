@@ -412,7 +412,7 @@ export default function App() {
         }}
       >
         <a
-          href="#"
+          href="/products"
           className="font-aeonik inline-flex items-center gap-2 text-sm text-[#4f4b45] transition-colors hover:text-[#C6A75E]"
         >
           <span aria-hidden="true">←</span> Back to Collection
@@ -607,11 +607,7 @@ export default function App() {
               </button>
 
             </div>
-            <div className="font-aeonik mt-10 flex flex-wrap gap-x-7 gap-y-3 text-[10px] uppercase tracking-widest text-[#4f4b45]">
-              <p>Free Shipping</p>
-              <p>Handmade</p>
-              <p>Easy Returns</p>
-            </div>
+
           </div>
         </section>
 
@@ -746,7 +742,7 @@ export default function App() {
               </h2>
 
               <div className="mt-6 flex items-center gap-4">
-                <div className="text-5xl font-semibold">4.8</div>
+                <div className="text-5xl font-semibold">5.0</div>
                 <div>
                   <div className="flex text-[#C6A75E]">{"★".repeat(5)}</div>
                   <p className="font-aeonik text-[10px] uppercase tracking-widest text-[#767068]">
