@@ -1,19 +1,27 @@
 import { useEffect, useMemo, useState } from 'react';
 import { PieChart, Activity, ArrowUpRight, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { apiFetch } from '@/lib/api';
 
-function getApiBase() {
-  return (process.env.NEXT_PUBLIC_BASE_URL ?? '').replace(/\/$/, '') || 'http://localhost:4000/api/v1';
+type AdminChartsProps = {
+  selectedRange?: string;
+};
+
+function getRangeFromSelection(selectedRange: string) {
+  const to = new Date();
+  const from = new Date(to);
+  if (selectedRange === 'Last 90 days') {
+    from.setDate(to.getDate() - 90);
+  } else if (selectedRange === 'This year') {
+    from.setMonth(0, 1);
+    from.setHours(0, 0, 0, 0);
+  } else {
+    from.setDate(to.getDate() - 30);
+  }
+  return { dateFrom: from.toISOString(), dateTo: to.toISOString() };
 }
 
-function getHeaders() {
-  const token = localStorage.getItem('token') || localStorage.getItem('authToken');
-  const headers: Record<string, string> = {};
-  if (token) headers.Authorization = `Bearer ${token}`;
-  return headers;
-}
-
-export default function AdminCharts() {
+export default function AdminCharts({ selectedRange = 'Last 30 days' }: AdminChartsProps) {
   const [visible, setVisible] = useState(false);
   const [hoveredPoint, setHoveredPoint] = useState<number | null>(null);
   const [months, setMonths] = useState<string[]>(['N/A']);
@@ -29,17 +37,13 @@ export default function AdminCharts() {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+
+    const loadCharts = async () => {
       try {
-        const base = getApiBase();
-        const headers = getHeaders();
-        const to = new Date();
-        const from = new Date();
-        from.setDate(to.getDate() - 365);
-        const q = new URLSearchParams({ dateFrom: from.toISOString(), dateTo: to.toISOString() });
+        const q = new URLSearchParams(getRangeFromSelection(selectedRange));
         const [revenueRes, overviewRes] = await Promise.all([
-          fetch(`${base}/admin/dashboard/revenue?${q.toString()}`, { headers }),
-          fetch(`${base}/admin/dashboard/overview?${q.toString()}`, { headers }),
+          apiFetch(`/admin/dashboard/revenue?${q.toString()}`),
+          apiFetch(`/admin/dashboard/overview?${q.toString()}`),
         ]);
         if (!revenueRes.ok || !overviewRes.ok) throw new Error('Failed to fetch chart data');
 
@@ -83,11 +87,18 @@ export default function AdminCharts() {
           setCategories([{ label: 'No Data', value: 100, color: '#E5D6C1' }]);
         }
       }
-    })();
+    };
+
+    void loadCharts();
+    const interval = window.setInterval(() => {
+      void loadCharts();
+    }, 60000);
+
     return () => {
       cancelled = true;
+      window.clearInterval(interval);
     };
-  }, []);
+  }, [selectedRange]);
 
   const maxRevenue = Math.max(...monthlyRevenue, 1);
   const points = monthlyRevenue

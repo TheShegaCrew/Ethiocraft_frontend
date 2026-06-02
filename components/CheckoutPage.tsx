@@ -82,7 +82,7 @@ export default function CheckoutPage() {
     { id: 'review', label: 'Review', icon: CheckCircle },
   ] as const
 
-  const shippingCost = formData.shippingMethod === 'express' ? 750 : 250
+  const shippingCost = formData.shippingMethod === 'express' ? 450 : 150
   const orderData = useMemo(() => {
     const subtotal = cartTotal
     const total = subtotal + shippingCost
@@ -322,7 +322,7 @@ export default function CheckoutPage() {
                           <input
                             type="text"
                             {...register('region')}
-                            placeholder="SNNPR"
+                            placeholder="Sidama"
                             className="w-full px-4 py-2 border border-border rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                           />
                           {errors.region && (
@@ -363,8 +363,8 @@ export default function CheckoutPage() {
                     <h3 className="font-medium text-foreground mb-4">Shipping Method</h3>
                     <div className="space-y-3">
                       {[
-                        { id: 'standard', label: 'Standard Delivery (3-5 days)', price: 250 },
-                        { id: 'express', label: 'Express Delivery (1-2 days)', price: 750 },
+                        { id: 'standard', label: 'Standard Delivery (3-5 days)', price: 150 },
+                        { id: 'express', label: 'Express Delivery (1-2 days)', price: 450 },
                       ].map((method) => (
                         <label
                           key={method.id}

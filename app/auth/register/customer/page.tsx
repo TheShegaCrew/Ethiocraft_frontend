@@ -223,7 +223,9 @@ export default function RegisterPage() {
                   Already have an account?{' '}
                   <a href="/auth/login" className="font-medium text-[#1C1C1C] hover:underline">Sign in</a>
                 </p>
-                <a href="#" className="hover:underline">Terms & Conditions</a>
+                <a href="/terms" className="hover:underline">Terms of Service</a>
+                {' · '}
+                <a href="/privacy" className="hover:underline">Privacy Policy</a>
               </div>
             </section>
 

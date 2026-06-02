@@ -5,15 +5,18 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { ArrowLeft, UserPlus, Shield, Mail, Phone, Lock, CheckCircle2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, UserPlus, Shield, Mail, Phone, Lock, CheckCircle2, AlertCircle, MapPin } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
 
 const agentSchema = z.object({
   firstName: z.string().min(2, 'First name is required'),
   lastName: z.string().min(2, 'Last name is required'),
   email: z.string().email('Please enter a valid email'),
-  phone: z.string().optional(),
+  phone: z.string().min(7, 'Phone is required'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
+  region: z.string().min(2, 'Region is required'),
+  city: z.string().min(2, 'City is required'),
+  addressLine1: z.string().min(3, 'Address line is required'),
 });
 
 type AgentFormData = z.infer<typeof agentSchema>;
@@ -37,6 +40,9 @@ export default function NewAgentPage() {
       email: '',
       phone: '',
       password: Math.random().toString(36).slice(-10) + '!', // Random initial password
+      region: '',
+      city: '',
+      addressLine1: '',
     },
   });
 
@@ -50,8 +56,20 @@ export default function NewAgentPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          ...values,
-          role: 'VERIFICATION_AGENT'
+          firstName: values.firstName,
+          lastName: values.lastName,
+          email: values.email,
+          phone: values.phone,
+          password: values.password,
+          role: 'VERIFICATION_AGENT',
+          address: {
+            label: 'Primary',
+            recipientName: `${values.firstName} ${values.lastName}`.trim(),
+            phone: values.phone,
+            region: values.region,
+            city: values.city,
+            line1: values.addressLine1,
+          },
         }),
       });
 
@@ -190,7 +208,7 @@ export default function NewAgentPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase tracking-widest text-[#85786d] ml-1">Phone (Optional)</label>
+                  <label className="text-xs font-bold uppercase tracking-widest text-[#85786d] ml-1">Phone</label>
                   <div className="relative group">
                     <Phone className="absolute left-5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#85786d] group-focus-within:text-[#C6A75E] transition-colors" />
                     <input
@@ -200,6 +218,44 @@ export default function NewAgentPage() {
                       placeholder="+251 ..."
                     />
                   </div>
+                  {errors.phone && <p className="text-[10px] text-red-500 font-bold uppercase tracking-tighter ml-1">{errors.phone.message}</p>}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase tracking-widest text-[#85786d] ml-1">Region</label>
+                    <div className="relative group">
+                      <MapPin className="absolute left-5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#85786d] group-focus-within:text-[#C6A75E] transition-colors" />
+                      <input
+                        type="text"
+                        {...register('region')}
+                        className="w-full bg-[#F8F8F7] border border-[#e8dece]/60 focus:border-[#C6A75E] focus:bg-white rounded-2xl pl-12 pr-5 py-4 text-sm outline-none transition-all placeholder:text-gray-400"
+                        placeholder="e.g. Addis Ababa"
+                      />
+                    </div>
+                    {errors.region && <p className="text-[10px] text-red-500 font-bold uppercase tracking-tighter ml-1">{errors.region.message}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase tracking-widest text-[#85786d] ml-1">City</label>
+                    <input
+                      type="text"
+                      {...register('city')}
+                      className="w-full bg-[#F8F8F7] border border-[#e8dece]/60 focus:border-[#C6A75E] focus:bg-white rounded-2xl px-5 py-4 text-sm outline-none transition-all placeholder:text-gray-400"
+                      placeholder="e.g. Addis Ababa"
+                    />
+                    {errors.city && <p className="text-[10px] text-red-500 font-bold uppercase tracking-tighter ml-1">{errors.city.message}</p>}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-[#85786d] ml-1">Address</label>
+                  <input
+                    type="text"
+                    {...register('addressLine1')}
+                    className="w-full bg-[#F8F8F7] border border-[#e8dece]/60 focus:border-[#C6A75E] focus:bg-white rounded-2xl px-5 py-4 text-sm outline-none transition-all placeholder:text-gray-400"
+                    placeholder="House number, street, landmark"
+                  />
+                  {errors.addressLine1 && <p className="text-[10px] text-red-500 font-bold uppercase tracking-tighter ml-1">{errors.addressLine1.message}</p>}
                 </div>
 
                 <div className="space-y-2">

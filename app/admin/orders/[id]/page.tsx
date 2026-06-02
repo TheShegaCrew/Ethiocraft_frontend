@@ -320,9 +320,9 @@ export default function App() {
               <button onClick={handleCancelClick} className="px-4 py-2 bg-rose-50 border border-rose-100 rounded-xl text-xs font-bold text-rose-700 hover:bg-rose-100 transition-all shadow-sm">
                 Cancel
               </button>
-              <button onClick={handleRefundClick} className="px-4 py-2 bg-[#3E2723] text-white rounded-xl text-xs font-bold hover:bg-[#2A1A17] transition-all shadow-lg shadow-[#3E2723]/10">
+              {/* <button onClick={handleRefundClick} className="px-4 py-2 bg-[#3E2723] text-white rounded-xl text-xs font-bold hover:bg-[#2A1A17] transition-all shadow-lg shadow-[#3E2723]/10">
                 Refund
-              </button>
+              </button> */}
             </div>
           </div>
         </div>

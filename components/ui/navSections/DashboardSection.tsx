@@ -157,7 +157,7 @@ export default function DashboardSection({
           </h2>
         </div>
         <Suspense fallback={<div className="h-64 animate-pulse rounded-2xl bg-[#f5efe2]" />}>
-          <AdminCharts />
+          <AdminCharts selectedRange={selectedRange} />
         </Suspense>
       </section>
     </main>

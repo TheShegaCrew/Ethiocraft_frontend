@@ -328,8 +328,12 @@ export default function RegisterPage() {
                   </a>
                 </p>
 
-                <a href="#" className="hover:underline">
-                  Terms & Conditions
+                <a href="/terms" className="hover:underline">
+                  Terms of Service
+                </a>
+                {' · '}
+                <a href="/privacy" className="hover:underline">
+                  Privacy Policy
                 </a>
               </div>
             </section>
